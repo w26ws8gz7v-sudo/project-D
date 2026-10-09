@@ -171,7 +171,7 @@ function parseMany(text){return splitInput(text).map(parse)}
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.3.6</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.3.7</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -195,10 +195,48 @@ function shoppingItemHtml(x){return `<div class="item shoppingItem"><button clas
 function isSelected(id){return state.selectedIds.includes(id)}
 function manageItemHtml(x){const meta=x.status==='active'?itemMeta(x):`Hotovo · ${x.area}`;return `<div class="item manageItem"><button class="selectBtn ${isSelected(x.id)?'selected':''}" data-select-id="${x.id}" aria-label="Vybrat ${esc(displayTitle(x))}"><span class="selectCircle">✓</span></button><div class="manageInfo" data-manage-open="${x.id}"><div class="itemTitle">${esc(displayTitle(x))}</div><div class="itemMeta">${esc(meta)}</div></div></div>`}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
-function today(){const now=today0();const attentionDay=v=>{const d=new Date(v);d.setHours(0,0,0,0);return d};const soonEnd=new Date(now.getTime()+7*dayMs);const active=state.items.filter(x=>x.status==='active');const shopping=active.filter(x=>x.kind==='shopping');const needs=active.filter(x=>x.kind!=='shopping'&&x.attention&&attentionDay(x.attention)<=now);const soon=active.filter(x=>x.kind!=='shopping'&&x.attention&&attentionDay(x.attention)>now&&attentionDay(x.attention)<=soonEnd).slice(0,4);const wait=active.filter(x=>x.kind==='waiting').slice(0,4);const vouchers=active.filter(x=>x.kind==='voucher');const value=vouchers.reduce((s,x)=>s+(x.value||0),0);
+function getTodayBuckets(){
+  const now=today0();
+  const tomorrow=new Date(now.getTime()+dayMs);
+  const afterSevenDays=new Date(now.getTime()+8*dayMs);
+  const active=state.items.filter(x=>x.status==='active');
+  const shopping=active.filter(x=>x.kind==='shopping');
+  const vouchers=active.filter(x=>x.kind==='voucher');
+
+  const needs=active.filter(x=>x.kind!=='shopping'&&x.attention&&new Date(x.attention)<tomorrow);
+  const needIds=new Set(needs.map(x=>x.id));
+
+  const soonAll=active.filter(x=>x.kind!=='shopping'&&!needIds.has(x.id)&&x.attention&&new Date(x.attention)>=tomorrow&&new Date(x.attention)<afterSevenDays);
+  const soon=soonAll.slice(0,4);
+  const soonIds=new Set(soon.map(x=>x.id));
+
+  // Čekající věci se ukážou jen pokud už nejsou vidět v Dnes/Brzy.
+  const wait=active.filter(x=>x.kind==='waiting'&&!needIds.has(x.id)&&!soonIds.has(x.id)).slice(0,4);
+  const visibleIds=new Set([...needs,...soon,...wait].map(x=>x.id));
+  const voucherIds=new Set(vouchers.map(x=>x.id));
+
+  // „Další věci hlídám“ = opravdu jen to, co na hlavní obrazovce není vidět.
+  // Nákup má vlastní kartu a poukazy vlastní souhrn, proto se sem nepočítají.
+  const hidden=active
+    .filter(x=>x.kind!=='shopping'&&!visibleIds.has(x.id)&&!voucherIds.has(x.id))
+    .sort((a,b)=>{
+      const ta=new Date(a.attention||a.due||a.expires||'2999-12-31').getTime();
+      const tb=new Date(b.attention||b.due||b.expires||'2999-12-31').getTime();
+      return ta-tb;
+    });
+
+  return{active,shopping,needs,soon,wait,vouchers,hidden};
+}
+function today(){
+const {active,shopping,needs,soon,wait,vouchers,hidden}=getTodayBuckets();
+const value=vouchers.reduce((s,x)=>s+(x.value||0),0);
 const attentionText=needs.length===1?'1 věc':needs.length>=2&&needs.length<=4?needs.length+' věci':needs.length+' věcí';
+const hiddenText=hidden.length===1?'1 další věc':hidden.length>=2&&hidden.length<=4?hidden.length+' další věci':hidden.length+' dalších věcí';
 const shoppingCard=shopping.length?`<div class="section"><div class="sectionHead"><h2>Nákup</h2></div><div class="card"><div class="item" id="shoppingSummary"><div class="icon">🛒</div><div class="itemMain"><div class="itemTitle">Nákupní seznam</div><div class="itemMeta">${shopping.length} ${shopping.length===1?'položka':shopping.length>=2&&shopping.length<=4?'položky':'položek'}</div></div><div class="right">›</div></div></div></div>`:'';
-return `${header()}<div class="eyebrow">${greeting()}</div><h1 class="title">Dnes potřebují tvoji pozornost ${attentionText}.</h1>${needs.length?`<div class="card">${needs.map((x,i)=>itemHtml(x,i===0&&x.priority==='urgent'?'urgent':x.priority==='soon'?'soon':'')).join('')}</div>`:`<div class="calm"><strong>Dnes nic nehoří.</strong>Můžeš nechat hlavu chvíli vypnutou.</div>`}${shoppingCard}${soon.length?`<div class="section"><div class="sectionHead"><h2>Brzy</h2></div><div class="card">${soon.map(x=>itemHtml(x)).join('')}</div></div>`:''}${wait.length?`<div class="section"><div class="sectionHead"><h2>Čekám na</h2></div><div class="card">${wait.map(x=>itemHtml(x)).join('')}</div></div>`:''}${vouchers.length?`<div class="section"><div class="voucherSummary"><div class="smallLabel">Aktivní poukazy</div><div class="big">${vouchers.length} · ${value.toLocaleString('cs-CZ')} Kč</div><div class="smallLabel">Hlídám, aby nic nepropadlo.</div></div></div>`:''}<div class="calm"><strong>${Math.max(0,active.length-needs.length-shopping.length)} dalších věcí hlídám.</strong>Dnes je řešit nemusíš.</div>`}
+const hiddenCard=hidden.length
+  ?`<div class="calm" id="hiddenSummary" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px"><div><strong>${hiddenText} hlídám.</strong>Dnes je řešit nemusíš.</div><div class="right">›</div></div>`
+  :`<div class="calm"><strong>Nic dalšího není schované.</strong>Všechno, co D teď hlídá, už vidíš výše.</div>`;
+return `${header()}<div class="eyebrow">${greeting()}</div><h1 class="title">Dnes potřebují tvoji pozornost ${attentionText}.</h1>${needs.length?`<div class="card">${needs.map((x,i)=>itemHtml(x,i===0&&x.priority==='urgent'?'urgent':x.priority==='soon'?'soon':'')).join('')}</div>`:`<div class="calm"><strong>Dnes nic nehoří.</strong>Můžeš nechat hlavu chvíli vypnutou.</div>`}${shoppingCard}${soon.length?`<div class="section"><div class="sectionHead"><h2>Brzy</h2></div><div class="card">${soon.map(x=>itemHtml(x)).join('')}</div></div>`:''}${wait.length?`<div class="section"><div class="sectionHead"><h2>Čekám na</h2></div><div class="card">${wait.map(x=>itemHtml(x)).join('')}</div></div>`:''}${vouchers.length?`<div class="section"><div class="voucherSummary"><div class="smallLabel">Aktivní poukazy</div><div class="big">${vouchers.length} · ${value.toLocaleString('cs-CZ')} Kč</div><div class="smallLabel">Hlídám, aby nic nepropadlo.</div></div></div>`:''}${hiddenCard}`}
 function add(){return `${header()}<h1 class="title">Přidat</h1><p class="subtitle">Co nechceš držet v hlavě?</p><div class="addGrid"><button class="action"><span style="font-size:24px">🎙️</span><b>Říct</b><small>později hlasem</small></button><button class="action"><span style="font-size:24px">📷</span><b>Vyfotit</b><small>foto a účtenky</small></button><button class="action"><span style="font-size:24px">📄</span><b>Dokument</b><small>PDF a smlouvy</small></button><button class="action"><span style="font-size:24px">✍️</span><b>Napsat</b><small>funguje už teď</small></button></div><textarea id="newText" placeholder="Např. Koupit mouku, mléko a granule. Zavolat Novákovi a zařídit STK."></textarea><div id="preview"></div><button class="primary" id="saveItem">Uložit</button><div class="smallLabel" style="text-align:center;margin-top:10px">Tohle už nemusíš držet v hlavě.</div>`}
 function listTab(kind,title,sub){let arr=state.items.filter(x=>x.status==='active'&&(kind==='watch'?x.kind!=='waiting'&&x.kind!=='shopping':x.kind===kind));return `${header()}<h1 class="title">${title}</h1><p class="subtitle">${sub}</p><div class="search"><input id="search" placeholder="Hledat…"><button class="secondary">Vše</button></div><div id="list">${arr.length?`<div class="card">${arr.map(x=>itemHtml(x)).join('')}</div>`:`<div class="empty">Zatím je tu prázdno.</div>`}</div>`}
 function things(){
@@ -392,6 +430,10 @@ function modal(){
     const all=state.confirmDelete==='all';
     return `<div class="modal" id="modal"><div class="sheet"><h2>${all?'Smazat úplně všechno?':`Smazat ${count} ${count===1?'položku':count>=2&&count<=4?'položky':'položek'}?`}</h2><div class="confirmBox">${all?'Tím vyčistíš celý Project D a začneš od nuly.':'Vybrané položky budou trvale odstraněné.'}</div><div class="sheetActions"><button id="cancelDeleteConfirm">Zrušit</button><button id="confirmDeleteNow" class="danger">Smazat</button></div></div></div>`;
   }
+  if(state.detail==='__hidden__'){
+    const xs=getTodayBuckets().hidden;
+    return `<div class="modal" id="modal"><div class="sheet"><h2>👁️ Co dál hlídám</h2><div class="meta">${xs.length} ${xs.length===1?'schovaná věc':xs.length>=2&&xs.length<=4?'schované věci':'schovaných věcí'} · zatím nepotřebují tvoji pozornost</div>${xs.length?`<div class="card">${xs.map(x=>itemHtml(x)).join('')}</div>`:`<div class="empty">Nic dalšího teď není schované.</div>`}<div class="sheetActions" style="grid-template-columns:1fr"><button id="closeHidden">Zavřít</button></div></div></div>`;
+  }
   if(state.detail==='__shopping__'){
     const xs=state.items.filter(x=>x.status==='active'&&x.kind==='shopping');
     return `<div class="modal" id="modal"><div class="sheet"><h2>🛒 Nákupní seznam</h2><div class="meta">${xs.length} ${xs.length===1?'položka':xs.length>=2&&xs.length<=4?'položky':'položek'}</div>${xs.length?`<div class="card">${xs.map(x=>shoppingItemHtml(x)).join('')}</div>`:`<div class="empty">Seznam je prázdný.</div>`}<div class="sheetActions" style="grid-template-columns:1fr"><button id="closeShopping">Zavřít</button></div></div></div>`;
@@ -419,6 +461,8 @@ const deleteSelected=$('#deleteSelected');if(deleteSelected)deleteSelected.oncli
 const deleteAll=$('#deleteAll');if(deleteAll)deleteAll.onclick=()=>{if(!state.items.length)return;state.confirmDelete='all';render()};
 const cancelDeleteConfirm=$('#cancelDeleteConfirm');if(cancelDeleteConfirm)cancelDeleteConfirm.onclick=()=>{state.confirmDelete=null;render()};
 const confirmDeleteNow=$('#confirmDeleteNow');if(confirmDeleteNow)confirmDeleteNow.onclick=()=>{const all=state.confirmDelete==='all';if(all){state.items=[]}else{const ids=new Set(state.selectedIds);state.items=state.items.filter(x=>!ids.has(x.id))}save();state.confirmDelete=null;state.selectedIds=[];state.manageMode=false;state.detail=null;state.editing=null;toast(all?'Všechno smazáno. Začínáme od nuly.':'Vybrané položky jsou smazané.');};
+const hiddenSummary=$('#hiddenSummary');if(hiddenSummary)hiddenSummary.onclick=()=>{state.detail='__hidden__';render()};
+const closeHidden=$('#closeHidden');if(closeHidden)closeHidden.onclick=()=>{state.detail=null;render()};
 const shoppingSummary=$('#shoppingSummary');if(shoppingSummary)shoppingSummary.onclick=()=>{state.detail='__shopping__';render()};
 const ta=$('#newText');if(ta){ta.oninput=()=>{const t=ta.value.trim();const xs=t?parseMany(t):[];$('#preview').innerHTML=xs.length?previewMany(xs):''}}
 const saveB=$('#saveItem');if(saveB)saveB.onclick=()=>{const t=$('#newText').value.trim();if(!t)return toast('Napiš nejdřív jednu nebo více věcí.');const xs=parseMany(t);if(!xs.length)return toast('Nenašel jsem nic k uložení.');state.items.unshift(...xs);save();state.tab='today';toast(xs.length===1?'Mám to.':'Mám '+xs.length+' věcí.');}
@@ -456,7 +500,7 @@ const x=state.items.find(i=>i.id===state.detail);if(x){
 function previewMany(xs){if(xs.length===1)return preview(xs[0]);return `<div class="parse"><h3>✦ Našel jsem ${xs.length} věcí</h3>${xs.map((x,i)=>`<div style="padding:${i?'10px 0':'4px 0 10px'};${i?'border-top:1px solid #edf2f0':''}"><div class="value">${x.icon} ${esc(x.title)}</div><div class="smallLabel">${esc(labelKind(x.kind))} · ${esc(areaPath(x))}${x.due?' · '+fmt(x.due):x.periodLabel?' · '+esc(x.periodLabel):''}${x.expires?' · do '+fmt(x.expires):''}${x.value?' · '+x.value.toLocaleString('cs-CZ')+' Kč':''}</div></div>`).join('')}</div>`}
 function preview(x){let rows=`<div class="row"><span>Zařadím jako</span><b>${labelKind(x.kind)}</b></div><div class="row"><span>Oblast</span><b>${esc(x.area)}</b></div>${x.entity?`<div class="row"><span>Konkrétně</span><b>${esc(x.entity)}</b></div>`:''}`;if(x.due)rows+=`<div class="row"><span>Termín</span><b>${fmt(x.due)}</b></div>`;if(x.periodLabel)rows+=`<div class="row"><span>Období</span><b>${esc(x.periodLabel)}</b></div>`;if(x.expires)rows+=`<div class="row"><span>Platnost</span><b>${fmt(x.expires)}</b></div>`;if(x.value)rows+=`<div class="row"><span>Hodnota</span><b>${x.value.toLocaleString('cs-CZ')} Kč</b></div>`;return `<div class="parse"><h3>✦ Rozumím tomu takto</h3><div class="value">${x.icon} ${esc(x.title)}</div>${rows}</div>`}
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.3.6';
+const APP_VERSION='0.3.7';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
