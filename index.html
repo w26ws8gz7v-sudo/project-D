@@ -297,17 +297,54 @@ t=t.replace(/^připomenout\s+mi\s+(?:(?:v|ve)\s+(?:lednu|únoru|březnu|dubnu|kv
 if(area==='Smlouvy')t=t.replace(/\s+končí\s+.*$/i,'');
 if(/\bstk\b/i.test(t))t=t.replace(/\s+(?:je\s+)?(?:v|ve)\s+.*$/i,'');
 t=stripTiming(t).replace(/[.!?]+$/,'').trim();
+if(kind==='todo')t=conciseAction(t,area);
 return t.charAt(0).toUpperCase()+t.slice(1)}
+
+// V0.4.7: Uložený plný text zůstává; na kartách zobrazujeme stručný pokyn.
+const CZ_WEEKDAY='(?:pondělí|pondeli|úterý|utery|středu|stredu|středa|čtvrtek|ctvrtek|pátek|patek|pátku|patku|sobotu|sobota|neděli|nedeli|neděle)';
+const CZ_DAYPART='(?:ráno|dopoledne|odpoledne|večer|v\\s+noci)';
+function daypartFromText(text){
+  const n=normalizedText(text),m=n.match(/(?:^|\s)(rano|dopoledne|odpoledne|vecer|v noci)(?=\s|$|[.,!?])/);
+  if(!m)return null;
+  return ({rano:'ráno',dopoledne:'dopoledne',odpoledne:'odpoledne',vecer:'večer','v noci':'v noci'})[m[1]]||null;
+}
+function itemDaypart(x){return x.daypart!==undefined?x.daypart:(!x.manualTitle&&x.origin!=='followup'&&daypartFromText(x.raw||''))||null}
+function conciseAction(text,area=''){
+  let t=String(text||'').trim();
+  // Časové výrazy jsou vlastnost termínu, nikoli podstatná část nadpisu.
+  t=t.replace(/^(?:(?:v|ve|do|na)\s+)?(?:dnes|zítra|pozítří|zitra|pozitri)\s*(?:ráno|dopoledne|odpoledne|večer)?\s*/i,'');
+  t=t.replace(new RegExp('^(?:(?:v|ve|do|na)\\s+)?'+CZ_WEEKDAY+'(?:\\s+'+CZ_DAYPART+')?\\s*[,:-]?\\s*','i'),'');
+  t=t.replace(/^(?:ráno|dopoledne|odpoledne|večer)(?:\s+doma)?\s*/i,'');
+  t=t.replace(/\s+(?:v|ve|do)\s+(?:pondělí|pondeli|úterý|utery|středu|stredu|středa|čtvrtek|ctvrtek|pátek|patek|pátku|patku|sobotu|sobota|neděli|nedeli|neděle)(?:\s+(?:ráno|dopoledne|odpoledne|večer))?(?=\s|$|[.,!?])/ig,' ');
+  t=t.replace(/\s+(?:dnes|zítra|pozítří)(?:\s+(?:ráno|dopoledne|odpoledne|večer))?(?=\s|$|[.,!?])/ig,' ');
+  t=t.replace(/\s+(?:ráno|dopoledne|odpoledne|večer)(?:\s+doma)?(?=\s|$|[.,!?])/ig,' ');
+  t=t.replace(/^(?:musím|mám|chci|potřebuji|potřebuju|budu|připomeň\s+mi)\s+/i,'');
+  // Přirozené české zadání „se objednat“ / „si to zapsat“ převedeme na infinitiv.
+  t=t.replace(/^se\s+(objednat|přihlásit|rezervovat)(?=\s|$)/i,(_,v)=>v+' se');
+  t=t.replace(/^si\s+to\s+(zapsat|poznamenat)(?=\s|$)/i,(_,v)=>v+' si to');
+  if(area==='Ben'&&/^objednat\s+(?:beníka|bena)\s+(?:na\s+)?stříhání(?=\s|$)/i.test(t))t='Objednat stříhání Bena';
+  t=t.replace(/\s{2,}/g,' ').replace(/[.!?]+$/,'').trim();
+  return t?t.charAt(0).toUpperCase()+t.slice(1):String(text||'').trim();
+}
+function actionableInstruction(text){
+  const t=conciseAction(text).toLowerCase();
+  return /^(?:zavolat|volat|napsat|zapsat|poznamenat|poslat|vyzvednout|zařídit|objednat|domluvit|rezervovat|přihlásit|zkontrolovat|zaplatit|uhradit|ověřit|ostříhat|odvézt|přivézt|připravit|udělat|vyřídit)(?=\s|$)/i.test(t);
+}
+function cardTitle(x){
+  const title=displayTitle(x);
+  return (x.kind==='todo'||x.kind==='watch')&&actionableInstruction(title)?conciseAction(title,x.area):title;
+}
+
 function parse(text){const l=text.toLowerCase();let kind='todo',area=detectArea(text),icon='📝',attention=null,due=null,since=null,value=null,expires=null,periodLabel=null;let entity=detectEntity(text,area),topic=detectTopic(text,area);const ti=temporalInfo(text);
 if(/čekám|až mi|až se ozve|odpověď|ozvou\s+se/.test(l)){kind='waiting';since=new Date().toISOString();due=ti.exact&&ti.date?ti.date.toISOString():null;attention=ti.date?ti.date.toISOString():new Date(Date.now()+5*dayMs).toISOString()}
 else if(/poukaz|voucher|dárkov(á|y) karta|kredit/.test(l)){kind='voucher';area='Poukazy';value=money(text);expires=ti.date?ti.date.toISOString():null;periodLabel=ti.periodLabel;if(expires){attention=new Date(new Date(expires).getTime()-30*dayMs).toISOString()}}
 else if(/mouka|mléko|granul|tablety do myčky|toalet|\bkoupit\b|\bdokoupit\b|došla|dochází|poslední|\bjar\b|rohlík|banán/.test(l)){kind='shopping';if(area==='Já')area='Domácnost';attention=null;due=ti.exact&&ti.date?ti.date.toISOString():null;periodLabel=ti.periodLabel}
 else if(area==='Smlouvy'&&/^\s*(?:zaplatit|uhradit)/i.test(stripTiming(text))){kind='todo';if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString()}
-else if(/^(?:(?:musím|mám|chci|potřebuji|potřebuju)\s+)?(?:zavolat|volat|napsat|zapsat|poslat|vyzvednout|zařídit)(?=\s|$)/i.test(text.trim())){kind='todo';if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString()}
+else if(actionableInstruction(text)){kind='todo';if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString()}
 else if(['Ben','Vozidla','Smlouvy','Zahrada','Zdraví','Dům'].includes(area)){kind='watch';periodLabel=ti.periodLabel;if(ti.exact&&ti.date)due=ti.date.toISOString();if(ti.date){if(area==='Ben')attention=ti.exact?new Date(ti.date.getTime()-14*dayMs).toISOString():ti.date.toISOString();else if(area==='Zahrada'||area==='Dům')attention=ti.date.toISOString();else if(area==='Smlouvy'&&/měsíc\s+předem/i.test(l))attention=minusMonth(ti.date).toISOString();else attention=new Date(ti.date.getTime()-30*dayMs).toISOString()}}
 else {if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString()}
 icon=iconFor(kind,area);
-return{id:uid(),title:cleanTitle(text,kind,area),raw:text,kind,area,entity,topic,icon,status:'active',created:new Date().toISOString(),attention,due,since,value,expires,periodLabel,_originalArea:area}}
+return{id:uid(),title:cleanTitle(text,kind,area),raw:text,kind,area,entity,topic,icon,status:'active',created:new Date().toISOString(),attention,due,since,value,expires,periodLabel,daypart:daypartFromText(text),_originalArea:area}}
 function splitInput(text){
   let source=String(text||'').replace(/\r/g,'\n').trim();
   if(!source)return[];
@@ -337,7 +374,7 @@ function parseMany(text){return splitInput(text).map(parse)}
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.6</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.7</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -348,21 +385,21 @@ function dateFromInput(v){if(!v)return null;const [y,m,d]=v.split('-').map(Numbe
 function iconFor(kind,area){if(kind==='shopping')return'🛒';if(kind==='waiting')return'⏳';if(kind==='voucher')return'🎁';return areaEmoji(area)||(kind==='watch'?'👁️':'📝')}
 function shortDate(d){const x=new Date(d),now=new Date();const base=`${x.getDate()}. ${x.getMonth()+1}.`;return x.getFullYear()===now.getFullYear()?base:`${base} ${x.getFullYear()}`}
 function areaPath(x){const label=areaLabel(x.area),parts=[label];const genericVehicle=x.area==='Vozidla'&&label!=='Vozidla'&&['Auto','Vozidlo'].includes(x.entity);if(x.entity&&!genericVehicle&&x.entity!==x.area&&x.entity!==label)parts.push(x.entity);if(x.topic&&x.topic!==x.entity)parts.push(x.topic);return parts.join(' → ')}
-function itemMeta(x){const path=areaPath(x);const snooze=x.snoozedUntil?` · připomenu ${shortDate(x.snoozedUntil)}`:'';const att=x.attention?new Date(x.attention):null,now=today0();const lateDays=att&&att<now?Math.max(1,Math.ceil((now-att)/dayMs)):0;const late=lateDays?` · čeká ${lateDays===1?'od včerejška':lateDays+' dní'}`:'';
+function itemMeta(x){const path=areaPath(x);const snooze=x.snoozedUntil?` · připomenu ${shortDate(x.snoozedUntil)}`:'';const att=x.attention?new Date(x.attention):null,now=today0();const due=x.due?new Date(x.due):null;const lateBase=due&&!Number.isNaN(due.getTime())?due:att;const lateDays=lateBase&&lateBase<now?Math.max(1,Math.ceil((now-lateBase)/dayMs)):0;const late=x.kind==='waiting'?(lateDays?` · čeká ${lateDays===1?'od včerejška':lateDays+' dní'}`:''):(lateDays?` · po termínu ${lateDays} ${lateDays===1?'den':lateDays>=2&&lateDays<=4?'dny':'dní'}`:'');const daypart=itemDaypart(x)?' · '+itemDaypart(x):'';
   if(x.kind==='shopping')return `Nákup · ${path}`;
   if(x.kind==='waiting'&&x.since)return `Čekám ${Math.max(0,daysBetween(new Date(),x.since))} dní · ${path}${snooze||(x.due?' · do '+shortDate(x.due):'')}${late}`;
   if(x.kind==='voucher'&&x.expires)return `Poukaz · do ${shortDate(x.expires)}${x.value?' · '+x.value.toLocaleString('cs-CZ')+' Kč':''}${snooze}${late}`;
-  if(x.kind==='watch')return `Hlídám · ${path}${snooze||(x.due?' · '+shortDate(x.due):x.periodLabel?' · '+x.periodLabel:'')}${late}`;
-  if(x.kind==='todo')return `Úkol · ${path}${snooze||(x.due?' · '+shortDate(x.due):x.periodLabel?' · '+x.periodLabel:'')}${late}`;
+  if(x.kind==='watch')return `Hlídám · ${path}${snooze||(x.due?' · '+shortDate(x.due):x.periodLabel?' · '+x.periodLabel:'')}${daypart}${late}`;
+  if(x.kind==='todo')return `Úkol · ${path}${snooze||(x.due?' · '+shortDate(x.due):x.periodLabel?' · '+x.periodLabel:'')}${daypart}${late}`;
   return path+snooze+late;
 }
-function itemHtml(x,klass=''){return `<div class="item ${klass}" data-id="${x.id}"><div class="icon">${x.icon||'•'}</div><div class="itemMain"><div class="itemTitle">${esc(displayTitle(x))}</div><div class="itemMeta">${esc(itemMeta(x))}</div></div><div class="right">›</div></div>`}
+function itemHtml(x,klass=''){return `<div class="item ${klass}" data-id="${x.id}"><div class="icon">${x.icon||'•'}</div><div class="itemMain"><div class="itemTitle">${esc(cardTitle(x))}</div><div class="itemMeta">${esc(itemMeta(x))}</div></div><div class="right">›</div></div>`}
 function shoppingItemHtml(x){return `<div class="item shoppingItem"><button class="shopCheck" data-shop-done="${x.id}" aria-label="Označit ${esc(displayTitle(x))} jako koupené"><span class="shopCircle">✓</span></button><div class="shopOpen" data-shop-open="${x.id}"><div class="itemMain"><div class="itemTitle">${esc(displayTitle(x))}</div><div class="itemMeta">${esc(itemMeta(x))}</div></div><div class="right">›</div></div></div>`}
 function isSelected(id){return state.selectedIds.includes(id)}
 function manageItemHtml(x){
   const chosen=isSelected(x.id);
   const meta=itemMeta(x);
-  return `<div class="item manageItem ${chosen?'manageItemSelected':''}"><button class="selectBtn ${chosen?'selected':''}" data-select-id="${esc(x.id)}" aria-pressed="${chosen}" aria-label="${chosen?'Odznačit':'Vybrat'} ${esc(displayTitle(x))}"><span class="selectCircle">✓</span></button><button class="manageInfo" data-select-id="${esc(x.id)}" aria-pressed="${chosen}"><div class="itemTitle">${esc(displayTitle(x))}</div><div class="itemMeta">${esc(meta)}</div></button><button class="manageOpen" data-manage-open="${esc(x.id)}" aria-label="Otevřít detail ${esc(displayTitle(x))}">›</button></div>`;
+  return `<div class="item manageItem ${chosen?'manageItemSelected':''}"><button class="selectBtn ${chosen?'selected':''}" data-select-id="${esc(x.id)}" aria-pressed="${chosen}" aria-label="${chosen?'Odznačit':'Vybrat'} ${esc(displayTitle(x))}"><span class="selectCircle">✓</span></button><button class="manageInfo" data-select-id="${esc(x.id)}" aria-pressed="${chosen}"><div class="itemTitle">${esc(cardTitle(x))}</div><div class="itemMeta">${esc(meta)}</div></button><button class="manageOpen" data-manage-open="${esc(x.id)}" aria-label="Otevřít detail ${esc(displayTitle(x))}">›</button></div>`;
 }
 function manageAreaKey(x){return x.area||'__unassigned__'}
 function manageCategoryHtml(area,items){
@@ -384,7 +421,7 @@ function getTodayBuckets(){
   const vouchers=active.filter(x=>x.kind==='voucher');
 
   const needs=active.filter(x=>x.kind!=='shopping'&&x.attention&&new Date(x.attention)<tomorrow).sort((a,b)=>new Date(a.attention)-new Date(b.attention));
-  const overdue=needs.filter(x=>new Date(x.attention)<now);
+  const overdue=needs.filter(x=>new Date(x.due||x.attention)<now);
   const needIds=new Set(needs.map(x=>x.id));
 
   const soonAll=active.filter(x=>x.kind!=='shopping'&&!needIds.has(x.id)&&x.attention&&new Date(x.attention)>=tomorrow&&new Date(x.attention)<afterSevenDays);
@@ -642,8 +679,8 @@ function createFollowup(x,date,opts={}){
   const item={
     id:uid(),title,manualTitle:title,raw:`Návaznost na: ${displayTitle(x)}`,kind,area,entity:opts.entity||x.entity||null,topic:opts.topic||x.topic||null,
     icon:iconFor(kind,area),status:'active',created:new Date().toISOString(),
-    attention:opts.attention||attentionForFollowup({area},dateIso,opts.mode),due,
-    since:opts.since||null,value:null,expires:null,periodLabel:null,
+    attention:opts.attention||(kind==='todo'?dateIso:attentionForFollowup({area},dateIso,opts.mode)),due,
+    since:opts.since||null,value:null,expires:null,periodLabel:null,daypart:opts.daypart??daypartFromText(title),
     parentId:x.id,chainId:x.chainId||x.id,origin:'followup',
     workflow:opts.workflow||x.workflow||null,appointmentStage:opts.appointmentStage||null
   };
@@ -734,6 +771,42 @@ function rescheduleModal(){
   if(!state.rescheduleFor)return'';
   const x=state.items.find(i=>i.id===state.rescheduleFor);if(!x){state.rescheduleFor=null;return''}
   return `<div class="modal" id="modal"><div class="sheet"><h2>Změnit termín</h2><div class="meta">${esc(displayTitle(x))}</div><div class="dateChoice"><input type="date" id="rescheduleDate" value="${dateInputValue(x.due)}"><button class="green" id="saveRescheduleDate">Uložit nový termín</button><button class="secondary" id="cancelRescheduleDate">Zrušit</button></div></div></div>`;
+}
+
+
+function removeItemsPermanently(ids){
+  const removed=new Set(ids);
+  if(!removed.size)return;
+  state.items=state.items.filter(x=>!removed.has(x.id));
+  const alive=new Map(state.items.map(x=>[x.id,x]));
+  for(const x of state.items){
+    if(x.followupId&&!alive.has(x.followupId))delete x.followupId;
+    if(x.parentId&&!alive.has(x.parentId)){
+      delete x.parentId;
+      delete x.chainId;
+      if(x.origin==='followup'){
+        // Nezůstane zavádějící odkaz na záměrně smazanou původní věc.
+        x.raw=displayTitle(x);
+        delete x.origin;
+      }
+    }
+  }
+  function rootFor(x){
+    const seen=new Set([x.id]);let current=x;
+    while(current.parentId&&alive.has(current.parentId)&&!seen.has(current.parentId)){
+      seen.add(current.parentId);current=alive.get(current.parentId);
+    }
+    return current.id;
+  }
+  for(const x of state.items){
+    const root=rootFor(x);
+    if(root===x.id)delete x.chainId;
+    else x.chainId=root;
+  }
+  if(state.undo&&removed.has(state.undo.id)){state.undo=null;if(undoTimer)clearTimeout(undoTimer)}
+  if(state.followup&&removed.has(state.followup.sourceId)){state.followup=null;state.followupMode=null;state.followupCustom=false}
+  if(state.historyFor&&removed.has(state.historyFor))state.historyFor=null;
+  save();
 }
 
 function chainFor(x){
@@ -829,7 +902,7 @@ function modal(){
   if(state.editing===x.id){
     const areas=allAreas();const currentHidden=x.area&&areaHidden(x.area);
     const dateValue=x.kind==='waiting'?dateInputValue(x.since):x.kind==='voucher'?dateInputValue(x.expires):dateInputValue(x.due);
-    return `<div class="modal" id="modal"><div class="sheet"><h2>Upravit</h2><div class="meta">Změň jen to, co potřebuješ.</div><div class="editForm"><label>Název<input id="editTitle" value="${esc(displayTitle(x))}"></label><label>Typ<select id="editKind"><option value="todo" ${x.kind==='todo'?'selected':''}>Úkol</option><option value="watch" ${x.kind==='watch'?'selected':''}>Hlídám</option><option value="waiting" ${x.kind==='waiting'?'selected':''}>Čekám</option><option value="shopping" ${x.kind==='shopping'?'selected':''}>Nákup</option><option value="voucher" ${x.kind==='voucher'?'selected':''}>Poukaz</option></select></label><label>Oblast<select id="editArea">${currentHidden?`<option value="${esc(x.area)}" selected disabled>${esc(areaLabel(x.area))} (skrytá – obnov v Moje věci)</option>`:''}${areas.map(a=>`<option value="${a}" ${x.area===a?'selected':''}>${esc(areaLabel(a))}</option>`).join('')}</select></label><label>Konkrétní osoba / věc (volitelné)<input id="editEntity" value="${esc(x.entity||'')}" placeholder="např. Táta, Audi Q8, Topení"></label><label>Co hlídám (volitelné)<input id="editTopic" value="${esc(x.topic||'')}" placeholder="např. STK, Servis, Pojištění"></label><label>Datum / termín<input id="editDate" type="date" value="${dateValue}"></label><label>Hodnota poukazu (Kč)<input id="editValue" type="number" min="0" step="1" value="${x.value||''}" placeholder="např. 2000"></label></div><div class="sheetActions"><button id="cancelEdit">Zrušit</button><button id="saveEdit" class="green">Uložit změny</button></div></div></div>`;
+    return `<div class="modal" id="modal"><div class="sheet"><h2>Upravit</h2><div class="meta">Změň jen to, co potřebuješ.</div><div class="editForm"><label>Název<input id="editTitle" value="${esc(displayTitle(x))}"></label><label>Typ<select id="editKind"><option value="todo" ${x.kind==='todo'?'selected':''}>Úkol</option><option value="watch" ${x.kind==='watch'?'selected':''}>Hlídám</option><option value="waiting" ${x.kind==='waiting'?'selected':''}>Čekám</option><option value="shopping" ${x.kind==='shopping'?'selected':''}>Nákup</option><option value="voucher" ${x.kind==='voucher'?'selected':''}>Poukaz</option></select></label><label>Oblast<select id="editArea">${currentHidden?`<option value="${esc(x.area)}" selected disabled>${esc(areaLabel(x.area))} (skrytá – obnov v Moje věci)</option>`:''}${areas.map(a=>`<option value="${a}" ${x.area===a?'selected':''}>${esc(areaLabel(a))}</option>`).join('')}</select></label><label>Konkrétní osoba / věc (volitelné)<input id="editEntity" value="${esc(x.entity||'')}" placeholder="např. Táta, Audi Q8, Topení"></label><label>Co hlídám (volitelné)<input id="editTopic" value="${esc(x.topic||'')}" placeholder="např. STK, Servis, Pojištění"></label><label>Datum / termín<input id="editDate" type="date" value="${dateValue}"></label><label>Část dne<select id="editDaypart"><option value="" ${!itemDaypart(x)?'selected':''}>Bez určení</option>${['ráno','dopoledne','odpoledne','večer','v noci'].map(d=>`<option value="${d}" ${itemDaypart(x)===d?'selected':''}>${d}</option>`).join('')}</select></label><label>Hodnota poukazu (Kč)<input id="editValue" type="number" min="0" step="1" value="${x.value||''}" placeholder="např. 2000"></label></div><div class="sheetActions"><button id="cancelEdit">Zrušit</button><button id="saveEdit" class="green">Uložit změny</button></div></div></div>`;
   }
   const ap=actionProfile(x);let actions='';
   if(x.kind!=='shopping'){
@@ -837,7 +910,7 @@ function modal(){
   }
   const source=x.origin==='followup'?'':(x.raw&&x.raw!==displayTitle(x)?`<div class="row"><span>Původní zadání</span><b style="text-align:right;max-width:65%">${esc(x.raw)}</b></div>`:'');
   const history=historyHtml(x);
-  return `<div class="modal" id="modal"><div class="sheet"><h2>${x.icon||''} ${esc(displayTitle(x))}</h2><div class="meta">${esc(itemMeta(x))}</div>${x.due?`<div class="row"><span>Termín</span><b>${fmt(x.due)}</b></div>`:''}${x.periodLabel?`<div class="row"><span>Období</span><b>${esc(x.periodLabel)}</b></div>`:''}${x.expires?`<div class="row"><span>Platnost</span><b>${fmt(x.expires)}</b></div>`:''}${x.value?`<div class="row"><span>Hodnota</span><b>${x.value.toLocaleString('cs-CZ')} Kč</b></div>`:''}${x.since?`<div class="row"><span>Čekám od</span><b>${fmt(x.since)}</b></div>`:''}${x.snoozedUntil?`<div class="row"><span>Připomenu</span><b>${fmt(x.snoozedUntil)}</b></div>`:''}${history}${source}<div class="sheetActions">${actions}<button id="editItem" class="secondary" style="grid-column:1/3">Upravit</button><button id="delete" class="danger" style="grid-column:1/3">Smazat</button></div></div></div>`}
+  return `<div class="modal" id="modal"><div class="sheet"><h2>${x.icon||''} ${esc(displayTitle(x))}</h2><div class="meta">${esc(itemMeta(x))}</div>${x.due?`<div class="row"><span>Termín</span><b>${fmt(x.due)}</b></div>`:''}${itemDaypart(x)?`<div class="row"><span>Část dne</span><b>${esc(itemDaypart(x))}</b></div>`:''}${x.periodLabel?`<div class="row"><span>Období</span><b>${esc(x.periodLabel)}</b></div>`:''}${x.expires?`<div class="row"><span>Platnost</span><b>${fmt(x.expires)}</b></div>`:''}${x.value?`<div class="row"><span>Hodnota</span><b>${x.value.toLocaleString('cs-CZ')} Kč</b></div>`:''}${x.since?`<div class="row"><span>Čekám od</span><b>${fmt(x.since)}</b></div>`:''}${x.snoozedUntil?`<div class="row"><span>Připomenu</span><b>${fmt(x.snoozedUntil)}</b></div>`:''}${history}${source}<div class="sheetActions">${actions}<button id="editItem" class="secondary" style="grid-column:1/3">Upravit</button><button id="delete" class="danger" style="grid-column:1/3">Smazat</button></div></div></div>`}
 function render(){let content='';if(state.tab==='today')content=today();if(state.tab==='add')content=add();if(state.tab==='watch')content=listTab('watch','Hlídám','Dlouhodobé věci přehledně na jednom místě.');if(state.tab==='waiting')content=listTab('waiting','Čekám na','Otevřené věci, které nemusíš držet v hlavě.');if(state.tab==='things')content=things();$('#app').innerHTML=`<main class="shell ${state.manageMode?'shellManage':''}">${content}</main>${nav()}${state.manageMode?`<div class="manageBar"><button class="secondary" id="cancelManage">Zrušit</button><button class="deleteSelected" id="deleteSelected" ${state.selectedIds.length?'':'disabled'}>Smazat vybrané (${state.selectedIds.length})</button></div>`:''}${state.categorySelectMode?`<div class="manageBar"><button class="secondary" id="cancelCategorySelect">Zrušit</button><button class="deleteSelected" id="deleteSelectedCategories" ${state.selectedCategories.length?'':'disabled'}>Smazat kategorie (${state.selectedCategories.length})</button></div>`:''}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}${state.undo?`<div class="undoToast"><span>${esc(state.undo.title)} · ${esc(state.undo.label||'Hotovo')}</span><button id="undoAction">Vrátit</button></div>`:''}${modal()}`;bind()}
 function openCategoryEditor(area){
   if(isBuiltinArea(area)){
@@ -898,7 +971,7 @@ const selectAll=$('#selectAll');if(selectAll)selectAll.onclick=()=>{const ids=st
 const deleteSelected=$('#deleteSelected');if(deleteSelected)deleteSelected.onclick=()=>{if(!state.selectedIds.length)return;state.confirmDelete='selected';render()};
 const deleteAll=$('#deleteAll');if(deleteAll)deleteAll.onclick=()=>{if(!state.items.length)return;state.confirmDelete='all';render()};
 const cancelDeleteConfirm=$('#cancelDeleteConfirm');if(cancelDeleteConfirm)cancelDeleteConfirm.onclick=()=>{state.confirmDelete=null;render()};
-const confirmDeleteNow=$('#confirmDeleteNow');if(confirmDeleteNow)confirmDeleteNow.onclick=()=>{const all=state.confirmDelete==='all';if(all){state.items=[]}else{const ids=new Set(state.selectedIds);state.items=state.items.filter(x=>x.status!=='active'||!ids.has(x.id))}save();state.confirmDelete=null;state.selectedIds=[];state.manageMode=false;state.manageOpenAreas=[];state.manageHiddenOpen=false;state.manageAdvancedOpen=false;state.detail=null;state.editing=null;toast(all?'Všechno smazáno. Začínáme od nuly.':'Vybrané položky jsou smazané.');};
+const confirmDeleteNow=$('#confirmDeleteNow');if(confirmDeleteNow)confirmDeleteNow.onclick=()=>{const all=state.confirmDelete==='all';if(all){removeItemsPermanently(state.items.map(x=>x.id))}else{const ids=new Set(state.selectedIds.filter(id=>state.items.some(x=>x.id===id&&x.status==='active')));removeItemsPermanently(ids)}state.confirmDelete=null;state.selectedIds=[];state.manageMode=false;state.manageOpenAreas=[];state.manageHiddenOpen=false;state.manageAdvancedOpen=false;state.detail=null;state.editing=null;toast(all?'Všechno smazáno. Začínáme od nuly.':'Vybrané položky jsou smazané.');};
 const hiddenSummary=$('#hiddenSummary');if(hiddenSummary)hiddenSummary.onclick=()=>{state.detail='__hidden__';render()};
 const closeHidden=$('#closeHidden');if(closeHidden)closeHidden.onclick=()=>{state.detail=null;render()};
 const shoppingSummary=$('#shoppingSummary');if(shoppingSummary)shoppingSummary.onclick=()=>{state.detail='__shopping__';render()};
@@ -908,7 +981,7 @@ const search=$('#search');if(search)search.oninput=()=>{const q=search.value.toL
 const modalEl=$('#modal');if(modalEl)modalEl.onclick=e=>{if(e.target!==modalEl)return;if(state.categoryDeleteConfirm){state.categoryDeleteConfirm=null;render();return}if(state.categoryMenuFor){state.categoryMenuFor=null;render();return}if(state.categoryEditor){state.categoryEditor=null;render();return}if(state.historyFor){state.historyFor=null;render();return}if(!state.followup&&!state.deferFor&&!state.rescheduleFor){state.detail=null;state.editing=null;state.confirmDelete=null;render()}};
 const closeShopping=$('#closeShopping');if(closeShopping)closeShopping.onclick=()=>{state.detail=null;state.editing=null;render()};
 const cancelEdit=$('#cancelEdit');if(cancelEdit)cancelEdit.onclick=()=>{state.editing=null;render()};
-const saveEdit=$('#saveEdit');if(saveEdit)saveEdit.onclick=()=>{const x=state.items.find(i=>i.id===state.detail);if(!x)return;const previousArea=x.area;const title=$('#editTitle').value.trim();if(!title)return toast('Název nemůže být prázdný.');const kind=$('#editKind').value,area=$('#editArea').value,entity=$('#editEntity').value.trim()||null,topic=$('#editTopic').value.trim()||null,date=dateFromInput($('#editDate').value),val=parseInt($('#editValue').value||'0',10)||null;x.manualTitle=title;x.title=title;x.kind=kind;x.area=area;x.entity=entity;x.topic=topic;x.icon=iconFor(kind,area);x.due=null;x.since=null;x.expires=null;x.periodLabel=null;x.snoozedUntil=null;x.value=kind==='voucher'?val:null;if(kind==='shopping'){x.attention=null}else if(kind==='waiting'){x.since=date||new Date().toISOString();x.attention=new Date(new Date(x.since).getTime()+5*dayMs).toISOString()}else if(kind==='voucher'){x.expires=date;x.attention=date?new Date(new Date(date).getTime()-30*dayMs).toISOString():null}else{x.due=date;x.attention=date||(kind==='todo'?new Date().toISOString():null)}if(area!==previousArea)learnAreaChoice(x.raw||title,area,previousArea);save();state.editing=null;toast('Uloženo.');};
+const saveEdit=$('#saveEdit');if(saveEdit)saveEdit.onclick=()=>{const x=state.items.find(i=>i.id===state.detail);if(!x)return;const previousArea=x.area;const title=$('#editTitle').value.trim();if(!title)return toast('Název nemůže být prázdný.');const kind=$('#editKind').value,area=$('#editArea').value,entity=$('#editEntity').value.trim()||null,topic=$('#editTopic').value.trim()||null,date=dateFromInput($('#editDate').value),val=parseInt($('#editValue').value||'0',10)||null;x.manualTitle=title;x.title=title;x.kind=kind;x.daypart=$('#editDaypart').value||null;x.area=area;x.entity=entity;x.topic=topic;x.icon=iconFor(kind,area);x.due=null;x.since=null;x.expires=null;x.periodLabel=null;x.snoozedUntil=null;x.value=kind==='voucher'?val:null;if(kind==='shopping'){x.attention=null}else if(kind==='waiting'){x.since=date||new Date().toISOString();x.attention=new Date(new Date(x.since).getTime()+5*dayMs).toISOString()}else if(kind==='voucher'){x.expires=date;x.attention=date?new Date(new Date(date).getTime()-30*dayMs).toISOString():null}else{x.due=date;x.attention=date||(kind==='todo'?new Date().toISOString():null)}if(area!==previousArea)learnAreaChoice(x.raw||title,area,previousArea);save();state.editing=null;toast('Uloženo.');};
 const editItem=$('#editItem');if(editItem)editItem.onclick=()=>{state.editing=state.detail;render()};
 const finishShopping=id=>{const item=state.items.find(i=>i.id===id);if(!item)return;item.status='done';save();state.undo={type:'shopping',id:item.id,title:displayTitle(item),label:'Koupeno'};if(undoTimer)clearTimeout(undoTimer);const remaining=state.items.some(i=>i.status==='active'&&i.kind==='shopping');if(state.detail==='__shopping__'&&!remaining)state.detail=null;render();undoTimer=setTimeout(()=>{if(state.undo&&state.undo.id===id){state.undo=null;render()}},5000)};
 $$('[data-shop-done]').forEach(b=>b.onclick=e=>{e.stopPropagation();finishShopping(b.dataset.shopDone)});
@@ -976,7 +1049,7 @@ const saveRescheduleDate=$('#saveRescheduleDate');if(saveRescheduleDate)saveResc
 const x=state.items.find(i=>i.id===state.detail);if(x){
   const complete=$('#completeAction');if(complete)complete.onclick=()=>completeItem(x);
   const secondary=$('#secondaryAction');if(secondary)secondary.onclick=()=>{const ap=actionProfile(x);if(ap.secondaryMode==='reschedule'){state.rescheduleFor=x.id;state.detail=null;render()}else{state.deferFor=x.id;state.deferCustom=false;state.detail=null;render()}};
-  const del=$('#delete');if(del)del.onclick=()=>{state.items=state.items.filter(i=>i.id!==x.id);save();state.detail=null;state.editing=null;toast('Smazáno.');}
+  const del=$('#delete');if(del)del.onclick=()=>{removeItemsPermanently([x.id]);state.detail=null;state.editing=null;toast('Smazáno bez návaznosti.');}
 }}
 function previewAreaOptions(x){const areas=allAreas();if(x.area&&!areas.includes(x.area))areas.push(x.area);return areas.map(a=>`<option value="${esc(a)}" ${x.area===a?'selected':''}>${esc(areaLabel(a))}${areaHidden(a)?' (skrytá)':''}</option>`).join('')+`<option value="__new_category__">＋ Vytvořit novou kategorii…</option>`}
 function previewDateValue(x){return dateInputValue(x.kind==='voucher'?x.expires:(x.due||null))}
@@ -986,12 +1059,12 @@ function previewItemEditor(x,i){
   return `<div class="previewItem">
     <div class="value">${x.icon} ${esc(x.title)}</div>
     <div class="previewQuickRow"><span>${esc(labelKind(x.kind))}</span><select class="previewArea" data-preview-area="${i}" aria-label="Oblast">${previewAreaOptions(x)}</select></div>
-    ${x.due?`<div class="smallLabel">Termín: ${fmt(x.due)}</div>`:''}${x.expires?`<div class="smallLabel">Platnost: ${fmt(x.expires)}</div>`:''}${x.value?`<div class="smallLabel">Hodnota: ${x.value.toLocaleString('cs-CZ')} Kč</div>`:''}${extraDate}
+    ${x.due?`<div class="smallLabel">Termín: ${fmt(x.due)}${x.daypart?' · '+esc(x.daypart):''}</div>`:''}${x.expires?`<div class="smallLabel">Platnost: ${fmt(x.expires)}</div>`:''}${x.value?`<div class="smallLabel">Hodnota: ${x.value.toLocaleString('cs-CZ')} Kč</div>`:''}${extraDate}
     <details class="previewDetails"><summary>Upravit podrobnosti ›</summary><div class="previewEditGrid">
       <label>Název<input data-preview-title="${i}" value="${esc(x.title)}"></label>
       <label>Konkrétně / osoba / objekt<input data-preview-entity="${i}" value="${esc(x.entity||'')}" placeholder="např. Audi Q8, Táta, Novák"></label>
       <label>Co hlídám / typ věci<input data-preview-topic="${i}" value="${esc(x.topic||'')}" placeholder="např. STK, Servis, Schůzka"></label>
-      <label>${dateLabel}<input data-preview-date="${i}" type="date" value="${previewDateValue(x)}"></label>
+      <label>${dateLabel}<input data-preview-date="${i}" type="date" value="${previewDateValue(x)}"></label><label>Část dne<select data-preview-daypart="${i}"><option value="" ${!x.daypart?'selected':''}>Bez určení</option>${['ráno','dopoledne','odpoledne','večer','v noci'].map(d=>`<option value="${d}" ${x.daypart===d?'selected':''}>${d}</option>`).join('')}</select></label>
     </div></details>
   </div>`
 }
@@ -1027,9 +1100,10 @@ function bindPreviewDraft(){
   $$('[data-preview-entity]').forEach(el=>el.oninput=()=>{const x=state.addDraft[+el.dataset.previewEntity];if(x)x.entity=el.value.trim()||null});
   $$('[data-preview-topic]').forEach(el=>el.oninput=()=>{const x=state.addDraft[+el.dataset.previewTopic];if(x)x.topic=el.value.trim()||null});
   $$('[data-preview-date]').forEach(el=>el.onchange=()=>{const x=state.addDraft[+el.dataset.previewDate];if(!x)return;applyPreviewDate(x,el.value)});
+  $$('[data-preview-daypart]').forEach(el=>el.onchange=()=>{const x=state.addDraft[+el.dataset.previewDaypart];if(x)x.daypart=el.value||null});
 }
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.4.6';
+const APP_VERSION='0.4.7';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
