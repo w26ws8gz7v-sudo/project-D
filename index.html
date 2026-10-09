@@ -75,6 +75,12 @@ body.categoryDragActive .tile{cursor:grabbing}
 .voiceKeyboardHelp{display:inline-block;border:0;background:transparent;color:#147754;font-weight:750;text-decoration:underline;text-underline-offset:3px;padding:5px 2px;font-size:12px;cursor:pointer}
 @keyframes voiceBeat{50%{transform:scale(1.18)}}
 @media (prefers-reduced-motion:reduce){.action.voiceListening .voiceGlyph{animation:none}}
+.categoryArchive{margin-top:18px;margin-bottom:12px;border-top:1px solid #e7ecef;padding-top:7px}
+.categoryArchiveToggle{width:100%;padding:12px 5px;border:0;background:transparent;display:flex;justify-content:space-between;align-items:center;color:#64748b;font-size:13px;font-weight:800;text-align:left}
+.categoryArchiveRows{border:1px solid #e7ecef;background:#fff;border-radius:16px;overflow:hidden;margin:5px 0 16px}
+.categoryArchiveItem{display:flex;width:100%;align-items:center;text-align:left;gap:10px;border:0;border-bottom:1px solid #edf1f2;background:#fff;color:#1c293d;padding:13px 11px}
+.categoryArchiveItem:last-child{border-bottom:0}.categoryArchiveCheck{color:#168660;font-size:19px;font-weight:900}
+.categoryArchiveMain{flex:1;min-width:0;display:grid;gap:3px}.categoryArchiveMain strong{font-size:13px;line-height:1.3}.categoryArchiveMain small{font-size:11px;color:#64748b}
 </style>
 </head>
 <body>
@@ -357,7 +363,7 @@ function beginVoiceInput(){
   }catch(e){haltVoiceOnNavigation();focusVoiceKeyboard('Přímé rozpoznávání se nespustilo. Použij mikrofon na klávesnici telefonu.')}
 }
 
-const state={tab:'today',items:normalizeItems(loadLocal()),detail:null,historyFor:null,toast:null,undo:null,editing:null,manageMode:false,selectedIds:[],manageOpenAreas:[],manageHiddenOpen:false,manageAdvancedOpen:false,confirmDelete:null,voucherListReturn:false,deferFor:null,deferCustom:false,rescheduleFor:null,followup:null,followupCustom:false,followupMode:null,addText:'',addDraft:[],categoryEditor:null,categoryColor:CATEGORY_COLORS[0],hiddenCategoriesOpen:false,categoryMenuFor:null,categorySelectMode:false,selectedCategories:[],categoryDeleteConfirm:null};
+const state={tab:'today',items:normalizeItems(loadLocal()),detail:null,historyFor:null,openArea:null,categoryHistoryOpen:false,deleteOneFor:null,toast:null,undo:null,editing:null,manageMode:false,selectedIds:[],manageOpenAreas:[],manageHiddenOpen:false,manageAdvancedOpen:false,confirmDelete:null,voucherListReturn:false,deferFor:null,deferCustom:false,rescheduleFor:null,followup:null,followupCustom:false,followupMode:null,addText:'',addDraft:[],categoryEditor:null,categoryColor:CATEGORY_COLORS[0],hiddenCategoriesOpen:false,categoryMenuFor:null,categorySelectMode:false,selectedCategories:[],categoryDeleteConfirm:null};
 let undoTimer=null;
 const DB_NAME='projectD-db-v1', DB_STORE='kv', DB_KEY='items';
 function openDB(){return new Promise((resolve,reject)=>{try{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{const db=r.result;if(!db.objectStoreNames.contains(DB_STORE))db.createObjectStore(DB_STORE)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)}catch(e){reject(e)}})}
@@ -601,7 +607,7 @@ function parseMany(text){
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.16</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.17</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -720,6 +726,14 @@ function hiddenAreaRow(a){
   const builtin=isBuiltinArea(a),count=categoryRecordCount(a);
   return `<div class="hiddenCategoryRow"><div class="icon" style="width:34px;height:34px;font-size:18px">${esc(areaEmoji(a))}</div><div class="hiddenCategoryMain"><div class="hiddenCategoryName">${esc(areaLabel(a))}</div><div class="hiddenCategoryMeta">${builtin?'Výchozí kategorie':'Vlastní kategorie'} · ${count} ${count===1?'záznam':count>=2&&count<=4?'záznamy':'záznamů'}</div></div><div class="hiddenCategoryBtns"><button class="secondary" data-restore-area="${esc(a)}">Obnovit</button><button class="secondary" data-edit-hidden-area="${esc(a)}">Upravit</button>${builtin?'':`<button class="danger" data-delete-hidden-area="${esc(a)}">Smazat</button>`}</div></div>`;
 }
+function categoryView(area){
+  const active=state.items.filter(x=>x.status==='active'&&x.area===area);
+  const archived=state.items.filter(x=>x.status==='done'&&x.area===area)
+    .sort((a,b)=>new Date(b.completedAt||b.created||0)-new Date(a.completedAt||a.created||0));
+  const label=areaLabel(area);
+  const archivedSection=archived.length?`<div class="categoryArchive"><button type="button" id="categoryArchiveToggle" class="categoryArchiveToggle" aria-expanded="${state.categoryHistoryOpen?'true':'false'}"><span>↺ Historie dokončených (${archived.length})</span><span>${state.categoryHistoryOpen?'⌃':'⌄'}</span></button>${state.categoryHistoryOpen?`<div class="categoryArchiveRows">${archived.map(x=>`<button type="button" class="categoryArchiveItem" data-archived-id="${esc(x.id)}"><span class="categoryArchiveCheck">✓</span><span class="categoryArchiveMain"><strong>${esc(displayTitle(x))}</strong><small>${esc(x.completedAt?'Dokončeno '+fmt(x.completedAt):'Dokončeno')} · ${esc(x.due?'termín '+fmt(x.due):'bez termínu')}</small></span><span aria-hidden="true">›</span></button>`).join('')}</div>`:''}</div>`:'';
+  return `${header()}<button type="button" class="secondary" id="backThings">← Zpět</button><h1 class="title" style="margin-top:18px">${esc(label)}</h1>${active.length?`<div class="card">${active.map(x=>itemHtml(x)).join('')}</div>`:`<div class="empty">Žádné aktivní věci.</div>`}${archivedSection}`;
+}
 function things(){
   const active=state.items.filter(x=>x.status==='active');
   const areas=sortedCategoryAreas(allAreas());const hidden=sortedCategoryAreas(hiddenAreas());
@@ -749,6 +763,7 @@ function isAppointmentBooking(x){
   const l=textOf(x);
   return /objednat\s+se\b/.test(l)
     || /objednat\b.*\b(?:na|k|ke)\b/.test(l)
+    || /objednat\s+(?:stříhání|očkování|veterináře|návštěvu|termín)\b/.test(l)
     || /domluvit\s+(?:si\s+)?term[ií]n/.test(l)
     || /rezervovat\s+(?:si\s+)?term[ií]n/.test(l);
 }
@@ -779,7 +794,7 @@ function appointmentTitleFromItem(x){
 function appointmentDoneLabel(x){
   const l=textOf(x);
   if(x.area==='Ben'&&/stříh/.test(l))return'Ostříháno';
-  if(x.area==='Ben'&&/očkov/.test(l))return'Hotovo';
+  if(x.area==='Ben'&&/očkov/.test(l))return'Očkováno';
   if(x.area==='Zdraví')return'Absolvováno';
   if(/kadeř|holič/.test(l))return'Hotovo';
   if(x.area==='Vozidla'&&/servis/.test(l))return'Hotovo';
@@ -833,6 +848,7 @@ function actionProfile(x){
   if(x.kind==='watch'){
     const learned=recurrenceSuggestion(x);if(learned)return learned;
   if(x.area==='Ben'&&/stříh/.test(l))return{primary:'Ostříháno',secondary:'Připomenout později',secondaryMode:'defer'};
+  if(x.area==='Ben'&&/očkov/.test(l))return{primary:'Očkováno',secondary:'Změnit termín',secondaryMode:'reschedule'};
     if(x.area==='Zahrada'&&/levand/.test(l))return{primary:'Hotovo letos',secondary:'Připomenout později',secondaryMode:'defer'};
     if(x.area==='Zahrada')return{primary:'Zkontrolováno',secondary:'Připomenout později',secondaryMode:'defer'};
     if(x.area==='Dům')return{primary:/kontrol/.test(l)?'Zkontrolováno':'Hotovo',secondary:'Připomenout později',secondaryMode:'defer'};
@@ -873,9 +889,12 @@ function followupProfile(x){
   if(x.kind==='todo'&&/^(?:zapsat|poznamenat|poslat|napsat|zaplatit|uhradit|vypovědět|připravit|vyřídit)(?=\s|$)/i.test(l))return{
     type:'generic_outcome',title:'Vzniklo z toho něco dalšího?',
     text:'Pokud ano, vytvoř další úkol, termín nebo čekání. Jinak věc uzavři.'};
+  if(x.kind==='watch'&&x.area===PET_AREA&&/očkov/.test(l))return{
+    type:'vaccination_next',title:'Co dál s očkováním?',
+    text:'Pokud už znáš termín dalšího očkování, zadej ho. Jinak si můžeš později připomenout objednání. D interval neodhaduje.'};
   if(x.kind==='watch'&&x.area==='Ben'&&/stříh/.test(l))return{
-    type:'grooming',title:'Chceš hlídat další stříhání?',
-    text:'Vyber, za jak dlouho se má připomenout znovu.'};
+    type:'grooming',title:'Kdy připomenout objednání stříhání?',
+    text:'Založím připomenutí objednat mazlíčka, ne již domluvený termín stříhání.'};
   if(x.kind==='watch'&&x.area==='Zdraví'&&(/zubař/.test(l)||/zub.*kontrol/.test(l)||/dent/.test(l)))return{
     type:'dentist',title:'Kdy má být další kontrola?',
     text:'Po absolvování můžeš založit další zubní kontrolu.'};
@@ -919,12 +938,34 @@ function createFollowup(x,date,opts={}){
     attention:opts.attention||(kind==='todo'?dateIso:attentionForFollowup({area},dateIso,opts.mode)),due,
     since:opts.since||null,value:null,expires:null,periodLabel:null,daypart:opts.daypart??daypartFromText(title),
     parentId:x.id,chainId:x.chainId||x.id,origin:'followup',
-    workflow:opts.workflow||x.workflow||null,appointmentStage:opts.appointmentStage||null
+    workflow:opts.workflow===undefined?(x.workflow||null):opts.workflow,appointmentStage:opts.appointmentStage||null
   };
   state.items.unshift(item);
   x.followupId=item.id;
   save();
   return item;
+}
+function bookingReminderTitle(x){
+  const t=displayTitle(x),name=x.entity&&x.entity!=='Ben'?x.entity:null;
+  if(x.area===PET_AREA){
+    const prior=chainFor(x).find(i=>i.id!==x.id&&isAppointmentBooking(i));
+    if(prior)return displayTitle(prior);
+    if(/stříh/.test(textOf(x))){
+      const accusative=t.match(/^Stříhání\s+([\p{L}]+ho)$/iu);
+      if(accusative)return `Objednat ${accusative[1]} na stříhání`;
+      return name?`Objednat stříhání – ${name}`:'Objednat stříhání mazlíčka';
+    }
+    if(/očkov/.test(textOf(x)))return name?`Objednat očkování – ${name}`:'Objednat očkování mazlíčka';
+    if(/veterin/.test(textOf(x)))return name?`Objednat veterináře – ${name}`:'Objednat návštěvu veterináře';
+  }
+  if(/kadeř/.test(textOf(x)))return'Objednat se ke kadeřnici';
+  if(/zubař/.test(textOf(x)))return'Objednat se k zubaři';
+  return `Objednat termín – ${t}`;
+}
+function createBookingReminder(x,date){
+  return createFollowup(x,date,{title:bookingReminderTitle(x),kind:'todo',area:x.area,
+    entity:x.entity||null,topic:x.topic||null,workflow:null,appointmentStage:null,
+    attention:new Date(date).toISOString()});
 }
 function startUndo(x,label,pendingFollowup=null){
   state.undo={type:'completion',id:x.id,title:displayTitle(x),label:label||'Hotovo',previousCompletedAt:x._undoPreviousCompletedAt||null,pendingFollowup};
@@ -960,23 +1001,39 @@ function rescheduleItem(x,date){
   else x.attention=iso;
   save();state.rescheduleFor=null;state.detail=null;toast('Termín upraven.');
 }
+function followupMeetingTitle(x){
+  const l=textOf(x),name=x.area===PET_AREA&&x.entity&&x.entity!=='Ben'?x.entity:null;
+  if(x.area===PET_AREA&&/veterin/.test(l)){
+    if(!name)return'Návštěva veterináře';
+    // Jednoduchá česká koncovka, jinak neutrální název bez hádání pádu.
+    if(/y$/iu.test(name))return `Návštěva veterináře s ${name}m`;
+    if(/a$/iu.test(name))return `Návštěva veterináře s ${name.slice(0,-1)}ou`;
+    return `Návštěva veterináře – ${name}`;
+  }
+  if(x.area===PET_AREA&&/stříh/.test(l))return name?`Stříhání – ${name}`:'Stříhání mazlíčka';
+  if(/zubař|ordinac/.test(l))return'Návštěva u zubaře';
+  return'Schůzka / termín';
+}
 function followupModal(){
   if(!state.followup)return'';
   const x=state.items.find(i=>i.id===state.followup.sourceId);if(!x){state.followup=null;return''}
   const f=state.followup;
-  if(state.followupMode){
+  if(state.followupMode&&state.followupMode!=='booking_reminder'&&state.followupMode!=='booking_reminder_custom'){
     const mode=state.followupMode;
     const cfg={
       repeat:{title:'Kdy to připomenout znovu?',label:'Název',date:'Kdy?',defaultTitle:displayTitle(x)},
-      meeting:{title:'Nová schůzka nebo termín',label:'Co je domluveno?',date:'Kdy?',defaultTitle:'Schůzka / termín'},
+      meeting:{title:'Na kdy jste se domluvili?',label:'Co je domluveno?',date:'Kdy?',defaultTitle:followupMeetingTitle(x)},
       waiting:{title:'Na co teď čekáš?',label:'Co nebo kdo se má ozvat?',date:'Kdy to znovu zkontrolovat?',defaultTitle:'Čekám na odpověď'},
       task:{title:'Jaký je další krok?',label:'Co je potřeba udělat?',date:'Kdy se k tomu vrátit?',defaultTitle:'Další krok'}
     }[mode];
     return `<div class="modal" id="modal"><div class="sheet"><h2>${esc(cfg.title)}</h2><div class="meta">Navazuje na: ${esc(displayTitle(x))}</div><div class="editForm"><label>${esc(cfg.label)}<input id="genericFollowTitle" value="${esc(cfg.defaultTitle)}"></label><label>${esc(cfg.date)}<input id="genericFollowDate" type="date"></label></div><div class="sheetActions"><button id="cancelGenericFollow">Zpět</button><button id="saveGenericFollow" class="green">Vytvořit návaznost</button></div></div></div>`;
   }
   if(state.followupCustom){
-    const helper=f.type==='appointment_book'?'Vyber datum, na které ses právě objednal.':f.type==='appointment_next'?'Vyber nový domluvený termín.':'Vyber konkrétní datum návaznosti.';
+    const helper=state.followupMode==='booking_reminder_custom'?'Zadej datum připomenutí k objednání.':f.type==='appointment_book'?'Vyber datum, na které ses právě objednal.':f.type==='appointment_next'?'Vyber další domluvený termín.':f.type==='vaccination_next'?'Zadej skutečný termín podle veterináře.':'Vyber konkrétní datum návaznosti.';
     return `<div class="modal" id="modal"><div class="sheet"><h2>${esc(f.title)}</h2><div class="meta">${esc(helper)}</div><div class="dateChoice"><input type="date" id="followupDate"><button class="green" id="saveFollowupDate">Uložit datum</button><button class="secondary" id="cancelFollowupDate">Zpět</button></div></div></div>`;
+  }
+  if(state.followupMode==='booking_reminder'){
+    return `<div class="modal" id="modal"><div class="sheet"><h2>Kdy připomenout objednání?</h2><div class="meta">Založím úkol k objednání, ne domluvenou návštěvu.</div><div class="choiceGrid"><button data-book-months="1">Za měsíc</button><button data-book-months="2" class="recommended">Za 2 měsíce</button><button data-book-months="3">Za 3 měsíce</button><button data-book-custom="1">Vybrat datum</button><button data-book-back="1" class="full">Zpět</button></div></div></div>`;
   }
   let choices='';
   if(f.type==='call_outcome'){
@@ -986,9 +1043,11 @@ function followupModal(){
   }else if(f.type==='appointment_book'){
     choices=`<button data-fu-custom="1" class="recommended full">Zadat termín návštěvy</button><button data-fu-restore="1" class="full">Ještě nejsem objednaný</button>`;
   }else if(f.type==='appointment_next'){
-    choices=`<button data-fu-custom="1" class="recommended full">Ano · zadat další termín</button><button data-fu-none="1" class="full">Ne · bez dalšího termínu</button>`;
+    choices=`<button data-fu-custom="1" class="recommended full">Mám další termín</button><button data-fu-booking-reminder="1" class="full">Připomenout objednání</button><button data-fu-none="1" class="full">Bez dalšího připomenutí</button>`;
+  }else if(f.type==='vaccination_next'){
+    choices=`<button data-fu-custom="1" class="recommended full">Znám termín dalšího očkování</button><button data-fu-booking-reminder="1" class="full">Připomenout objednání</button>`;
   }else if(f.type==='learned_recurrence')choices=`<button data-fu-learned="${f.intervalDays}" class="recommended full">Ano · připomenout ${esc(formatCadence(f.intervalDays))}</button><button data-fu-custom="1" class="full">Vybrat jiné datum</button>`;
-  else if(f.type==='grooming')choices=`<button data-fu-months="2">Za 2 měsíce</button><button data-fu-months="3" class="recommended">Za 3 měsíce</button><button data-fu-months="4">Za 4 měsíce</button><button data-fu-custom="1">Vybrat datum</button>`;
+  else if(f.type==='grooming')choices=`<button data-fu-booking-reminder="1" class="recommended full">Připomenout objednání</button>`;
   else if(f.type==='dentist')choices=`<button data-fu-months="6" class="recommended">Za 6 měsíců</button><button data-fu-months="12">Za 12 měsíců</button><button data-fu-custom="1">Vybrat datum</button>`;
   else if(f.type==='stk')choices=`<button data-fu-years="1">Za 1 rok</button><button data-fu-years="2">Za 2 roky</button><button data-fu-custom="1" class="recommended">Vybrat přesné datum</button>`;
   else if(f.type==='garden')choices=`<button data-fu-spring="1" class="recommended">Příští jaro</button><button data-fu-years="1">Za rok</button><button data-fu-custom="1">Vybrat datum</button>`;
@@ -1057,8 +1116,10 @@ function historyEvent(i){
   const due=i.due?fmt(i.due):i.periodLabel||null;
   // DŮLEŽITÉ: naplánovaný termín má přednost před detekcí „objednat“ v původním raw textu.
   if(i.workflow==='appointment'&&i.appointmentStage==='scheduled'){
+    const child=state.items.find(j=>j.parentId===i.id&&j.status==='active'&&j.due===i.due&&displayTitle(j)===title);
+    if(i.status==='done'&&child)return {title:`✓ Termín domluven: ${title}`,meta:`${due?due+' · ':''}${i.completedAt?'domluveno '+fmt(i.completedAt):'domluveno'}`};
     return i.status==='done'
-      ?{title:`✓ Termín: ${title}`,meta:`${due?due+' · ':''}${i.completedAt?'hotovo '+fmt(i.completedAt):'hotovo'}`}
+      ?{title:`✓ Návštěva: ${title}`,meta:`${due?due+' · ':''}${i.completedAt?'dokončeno '+fmt(i.completedAt):'dokončeno'}`}
       :{title:`→ Aktivní termín: ${title}`,meta:due||'Termín je aktivní'};
   }
   if(isAppointmentBooking(i)){
@@ -1075,8 +1136,16 @@ function historyEvent(i){
     ?{title:`✓ ${title}`,meta:`${due?due+' · ':''}${i.completedAt?'dokončeno '+fmt(i.completedAt):'dokončeno'}`}
     :{title:`→ ${title}`,meta:due||'aktivní'};
 }
-function historyHtml(x){
+function historyDisplayChain(x){
   const chain=chainFor(x);
+  // Legacy v0.4.16 could produce an already completed intermediary with the
+  // same appointment as its still-active child. Preserve stored data but do
+  // not present that as a separate, apparently completed veterinary visit.
+  return chain.filter(i=>!(i.status==='done'&&i.workflow==='appointment'&&i.appointmentStage==='scheduled'&&
+    chain.some(j=>j.parentId===i.id&&j.status==='active'&&j.due===i.due&&displayTitle(j)===displayTitle(i))));
+}
+function historyHtml(x){
+  const chain=historyDisplayChain(x);
   if(chain.length<=1)return'';
   const idx=chain.findIndex(i=>i.id===x.id);
   const prev=idx>0?chain[idx-1]:chain.filter(i=>i.id!==x.id).slice(-1)[0];
@@ -1086,7 +1155,7 @@ function historyHtml(x){
 }
 function historyModal(){
   const x=state.items.find(i=>i.id===state.historyFor);if(!x){state.historyFor=null;return''}
-  const chain=chainFor(x);
+  const chain=historyDisplayChain(x);
   return `<div class="modal" id="modal"><div class="sheet"><h2>Historie návazností</h2><div class="meta">${esc(displayTitle(x))} · ${chain.length} ${chain.length===1?'krok':chain.length>=2&&chain.length<=4?'kroky':'kroků'}</div><div class="historyTimeline">${chain.map(i=>{const e=historyEvent(i);return `<div class="historyEvent ${i.id===x.id?'current':''}"><div class="historyEventTitle">${esc(e.title)}</div>${e.meta?`<div class="historyEventMeta">${esc(e.meta)}</div>`:''}</div>`}).join('')}</div><div class="sheetActions" style="grid-template-columns:1fr"><button id="closeHistory">Zavřít</button></div></div></div>`;
 }
 
@@ -1115,7 +1184,13 @@ function categoryModal(){
   return `<div class="modal" id="modal"><div class="sheet"><h2>${editing?'Upravit kategorii':'Nová kategorie'}</h2><div class="meta">${Number.isInteger(c.assignToDraftIndex)?'Po vytvoření sem rovnou zařadím rozpracovanou věc. ':''}${isBuiltin?'Měníš jen to, co vidíš. D si pod povrchem zachová význam této oblasti a chytrou logiku.':'Vlastní oblast se může D postupně naučit podle klíčových slov a tvých oprav.'}</div><div class="editForm"><label>Název<input id="categoryName" value="${esc(c.name||'')}" placeholder="např. Byt, Audi Q8, Krása"></label><label>Emoji (volitelné)<input id="categoryEmoji" value="${esc(c.emoji||'')}" placeholder="např. 🏢"></label><div class="emojiSuggestions">${emojis.map(e=>`<button class="emojiPick" data-emoji="${e}">${e}</button>`).join('')}</div><label>Klíčová slova pro automatické zařazení<input id="categoryKeywords" value="${esc((c.keywords||[]).join(', '))}" placeholder="např. manikúra, pedikúra, kosmetika"></label><label>Barva</label><div class="colorRow">${CATEGORY_COLORS.map(col=>`<button class="colorPick ${c.color===col?'selected':''}" data-cat-color="${col}" style="background:${col}" aria-label="Barva"></button>`).join('')}</div></div><div class="sheetActions"><button id="cancelCategory">Zrušit</button><button id="saveCategory" class="green">${editing?'Uložit':'Vytvořit'}</button>${isBuiltin?`<button id="resetCategory" class="secondary" style="grid-column:1/3">Obnovit výchozí podobu</button>`:''}</div></div></div>`;
 }
 
+function deleteSingleModal(){
+  const x=state.items.find(i=>i.id===state.deleteOneFor);
+  if(!x){state.deleteOneFor=null;return''}
+  return `<div class="modal" id="modal"><div class="sheet"><h2>Opravdu smazat tuto věc?</h2><div class="meta">${esc(displayTitle(x))}</div><div class="confirmBox">Záznam bude trvale smazaný. Smazání není splnění úkolu a není možné ho vrátit.</div><div class="sheetActions"><button id="cancelDeleteOne">Zrušit</button><button id="confirmDeleteOne" class="danger">Smazat</button></div></div></div>`;
+}
 function modal(){
+  if(state.deleteOneFor)return deleteSingleModal();
   if(state.categoryDeleteConfirm)return categoryDeleteModal();
   if(state.categoryMenuFor)return categoryMenuModal();
   if(state.categoryEditor)return categoryModal();
@@ -1269,7 +1344,7 @@ function initCategoryReordering(){
   window.addEventListener('pagehide',cleanup);
 }
 
-function render(){if(categoryDrag?.active){categoryDrag.needsRefresh=true;return}let content='';if(state.tab==='today')content=today();if(state.tab==='add')content=add();if(state.tab==='watch')content=listTab('watch','Hlídám','Dlouhodobé věci přehledně na jednom místě.');if(state.tab==='waiting')content=listTab('waiting','Čekám na','Otevřené věci, které nemusíš držet v hlavě.');if(state.tab==='things')content=things();$('#app').innerHTML=`<main class="shell ${state.manageMode?'shellManage':''}">${content}</main>${nav()}${state.manageMode?`<div class="manageBar"><button class="secondary" id="cancelManage">Zrušit</button><button class="deleteSelected" id="deleteSelected" ${state.selectedIds.length?'':'disabled'}>Smazat vybrané (${state.selectedIds.length})</button></div>`:''}${state.categorySelectMode?`<div class="manageBar"><button class="secondary" id="cancelCategorySelect">Zrušit</button><button class="deleteSelected" id="deleteSelectedCategories" ${state.selectedCategories.length?'':'disabled'}>Smazat kategorie (${state.selectedCategories.length})</button></div>`:''}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}${state.undo?`<div class="undoToast"><span>${esc(state.undo.title)} · ${esc(state.undo.label||'Hotovo')}</span><button id="undoAction">Vrátit</button></div>`:''}${modal()}`;bind()}
+function render(){if(categoryDrag?.active){categoryDrag.needsRefresh=true;return}let content='';if(state.tab==='today')content=today();if(state.tab==='add')content=add();if(state.tab==='watch')content=listTab('watch','Hlídám','Dlouhodobé věci přehledně na jednom místě.');if(state.tab==='waiting')content=listTab('waiting','Čekám na','Otevřené věci, které nemusíš držet v hlavě.');if(state.tab==='things')content=state.openArea&&!state.manageMode?categoryView(state.openArea):things();$('#app').innerHTML=`<main class="shell ${state.manageMode?'shellManage':''}">${content}</main>${nav()}${state.manageMode?`<div class="manageBar"><button class="secondary" id="cancelManage">Zrušit</button><button class="deleteSelected" id="deleteSelected" ${state.selectedIds.length?'':'disabled'}>Smazat vybrané (${state.selectedIds.length})</button></div>`:''}${state.categorySelectMode?`<div class="manageBar"><button class="secondary" id="cancelCategorySelect">Zrušit</button><button class="deleteSelected" id="deleteSelectedCategories" ${state.selectedCategories.length?'':'disabled'}>Smazat kategorie (${state.selectedCategories.length})</button></div>`:''}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}${state.undo?`<div class="undoToast"><span>${esc(state.undo.title)} · ${esc(state.undo.label||'Hotovo')}</span><button id="undoAction">Vrátit</button></div>`:''}${modal()}`;bind()}
 function openCategoryEditor(area){
   if(isBuiltinArea(area)){
     const c=builtinAreaConfig(area);
@@ -1285,16 +1360,17 @@ function openCategoryEditor(area){
     render();
   }
 }
-function bind(){$$('[data-tab]').forEach(b=>b.onclick=()=>{if(b.dataset.tab!=='add')haltVoiceOnNavigation();state.tab=b.dataset.tab;state.detail=null;state.voucherListReturn=false;state.historyFor=null;state.editing=null;state.manageMode=false;state.selectedIds=[];state.manageOpenAreas=[];state.manageHiddenOpen=false;state.manageAdvancedOpen=false;state.confirmDelete=null;state.deferFor=null;state.deferCustom=false;state.rescheduleFor=null;state.followup=null;state.followupCustom=false;state.followupMode=null;state.hiddenCategoriesOpen=false;state.categoryMenuFor=null;state.categorySelectMode=false;state.selectedCategories=[];state.categoryDeleteConfirm=null;render()});$$('[data-id]').forEach(e=>e.onclick=()=>{state.detail=e.dataset.id;state.voucherListReturn=false;render()});
+function bind(){$$('[data-tab]').forEach(b=>b.onclick=()=>{if(b.dataset.tab!=='add')haltVoiceOnNavigation();state.tab=b.dataset.tab;state.detail=null;state.voucherListReturn=false;state.historyFor=null;state.openArea=null;state.categoryHistoryOpen=false;state.deleteOneFor=null;state.editing=null;state.manageMode=false;state.selectedIds=[];state.manageOpenAreas=[];state.manageHiddenOpen=false;state.manageAdvancedOpen=false;state.confirmDelete=null;state.deferFor=null;state.deferCustom=false;state.rescheduleFor=null;state.followup=null;state.followupCustom=false;state.followupMode=null;state.hiddenCategoriesOpen=false;state.categoryMenuFor=null;state.categorySelectMode=false;state.selectedCategories=[];state.categoryDeleteConfirm=null;render()});$$('[data-id]').forEach(e=>e.onclick=()=>{state.detail=e.dataset.id;state.voucherListReturn=false;render()});
 $$('[data-area]').forEach(el=>el.onclick=e=>{
   if(e.target.closest('[data-category-menu]')||Date.now()<categoryDragIgnoreClicksUntil)return;
-  const a=el.dataset.area;const arr=state.items.filter(x=>x.status==='active'&&x.area===a);
-  $('.shell').innerHTML=`${header()}<button class="secondary" id="backThings">← Zpět</button><h1 class="title" style="margin-top:18px">${esc(areaLabel(a))}</h1>${arr.length?`<div class="card">${arr.map(x=>itemHtml(x)).join('')}</div>`:`<div class="empty">Zatím nic.</div>`}`;
-  $('#backThings').onclick=()=>render();$$('[data-id]').forEach(i=>i.onclick=()=>{state.detail=i.dataset.id;render()});
+  const a=el.dataset.area;state.openArea=a;state.categoryHistoryOpen=false;render();
 });
 $$('[data-category-menu]').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();state.categoryMenuFor=b.dataset.categoryMenu;render()});
 $$('[data-select-category]').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();const a=b.dataset.selectCategory;state.selectedCategories=state.selectedCategories.includes(a)?state.selectedCategories.filter(x=>x!==a):[...state.selectedCategories,a];render()});
 $$('[data-select-category-card]').forEach(el=>el.onclick=e=>{if(e.target.closest('[data-select-category]'))return;const a=el.dataset.selectCategoryCard;state.selectedCategories=state.selectedCategories.includes(a)?state.selectedCategories.filter(x=>x!==a):[...state.selectedCategories,a];render()});
+const backThings=$('#backThings');if(backThings)backThings.onclick=()=>{state.openArea=null;state.categoryHistoryOpen=false;render()};
+const categoryArchiveToggle=$('#categoryArchiveToggle');if(categoryArchiveToggle)categoryArchiveToggle.onclick=()=>{state.categoryHistoryOpen=!state.categoryHistoryOpen;render()};
+$$('[data-archived-id]').forEach(b=>b.onclick=()=>{state.historyFor=b.dataset.archivedId;render()});
 const selectAllCategories=$('#selectAllCategories');if(selectAllCategories)selectAllCategories.onclick=()=>{const areas=allAreas();state.selectedCategories=state.selectedCategories.length===areas.length?[]:[...areas];render()};
 const cancelCategorySelect=$('#cancelCategorySelect');if(cancelCategorySelect)cancelCategorySelect.onclick=()=>{state.categorySelectMode=false;state.selectedCategories=[];render()};
 const deleteSelectedCategories=$('#deleteSelectedCategories');if(deleteSelectedCategories)deleteSelectedCategories.onclick=()=>{const areas=[...state.selectedCategories];if(!areas.length)return;const blocked=areas.filter(a=>categoryRecordCount(a)>0);if(blocked.length)return toast(`${blocked.length===1?`Kategorie ${areaLabel(blocked[0])} obsahuje záznamy.`:`${blocked.length} vybraných kategorií obsahuje záznamy.`} Nejdřív je přesuň nebo smaž.`);state.categoryDeleteConfirm={areas};render()};
@@ -1373,14 +1449,23 @@ const saveGenericFollow=$('#saveGenericFollow');if(saveGenericFollow)saveGeneric
   toast(mode==='waiting'?'Čekání je uložené.':'Návaznost je uložená.');
 };
 const fuLearned=$('[data-fu-learned]');if(fuLearned)fuLearned.onclick=()=>{if(!followSource)return;const days=+fuLearned.dataset.fuLearned||30;const date=addDaysFrom(followSource.completedAt||new Date(),days);createFollowup(followSource,date,{title:displayTitle(followSource),kind:followSource.kind==='watch'?'watch':'todo',area:followSource.area,entity:followSource.entity||null,topic:followSource.topic||null,attention:new Date(date).toISOString()});state.followup=null;state.followupCustom=false;state.followupMode=null;toast('Rytmus je pohlídaný.');};
+const bookReminder=$('[data-fu-booking-reminder]');if(bookReminder)bookReminder.onclick=()=>{state.followupMode='booking_reminder';state.followupCustom=false;render()};
+$$('[data-book-months]').forEach(b=>b.onclick=()=>{if(!followSource)return;const date=addMonthsFrom(followSource.completedAt||new Date(),+b.dataset.bookMonths);createBookingReminder(followSource,date);state.followup=null;state.followupCustom=false;state.followupMode=null;toast('Připomenutí objednání je uložené.')});
+const bookCustom=$('[data-book-custom]');if(bookCustom)bookCustom.onclick=()=>{state.followupMode='booking_reminder_custom';state.followupCustom=true;render()};
+const bookBack=$('[data-book-back]');if(bookBack)bookBack.onclick=()=>{state.followupMode=null;render()};
 const fuCustom=$('[data-fu-custom]');if(fuCustom)fuCustom.onclick=()=>{state.followupCustom=true;state.followupMode=null;render()};
 const fuRestore=$('[data-fu-restore]');if(fuRestore)fuRestore.onclick=()=>{if(!followSource)return;followSource.status='active';followSource.completedAt=null;followSource.followupId=null;save();state.followup=null;state.followupCustom=false;state.followupMode=null;toast('Vráceno k objednání.');};
-const fuNone=$('[data-fu-none]');if(fuNone)fuNone.onclick=()=>{if(state.followup?.type==='appointment_next'&&followSource){const learned=recurrenceSuggestion(followSource);if(learned){state.followup={sourceId:followSource.id,...learned};state.followupCustom=false;state.followupMode=null;render();return}}state.followup=null;state.followupCustom=false;state.followupMode=null;toast('Hotovo bez další návaznosti.');};
+const fuNone=$('[data-fu-none]');if(fuNone)fuNone.onclick=()=>{state.followup=null;state.followupCustom=false;state.followupMode=null;toast('Hotovo bez další návaznosti.');};
 const cancelFollowupDate=$('#cancelFollowupDate');if(cancelFollowupDate)cancelFollowupDate.onclick=()=>{state.followupCustom=false;render()};
 const saveFollowupDate=$('#saveFollowupDate');if(saveFollowupDate)saveFollowupDate.onclick=()=>{
   if(!followSource)return;
   const v=$('#followupDate').value;if(!v)return toast('Vyber datum.');
   const date=dateFromInput(v);let opts={};
+  if(state.followupMode==='booking_reminder_custom'){
+    createBookingReminder(followSource,date);
+    state.followup=null;state.followupCustom=false;state.followupMode=null;
+    return toast('Připomenutí objednání je uložené.');
+  }
   if(state.followup.type==='appointment_book'){
     const topic=appointmentTopicFromItem(followSource);
     opts={
@@ -1388,6 +1473,10 @@ const saveFollowupDate=$('#saveFollowupDate');if(saveFollowupDate)saveFollowupDa
       entity:followSource.entity||null,topic:followSource.topic||topic,
       workflow:'appointment',appointmentStage:'scheduled',attention:new Date(date).toISOString()
     };
+  }else if(state.followup.type==='vaccination_next'){
+    opts={title:displayTitle(followSource),kind:'watch',area:followSource.area,
+      entity:followSource.entity||null,topic:'Očkování',workflow:null,
+      attention:new Date(date).toISOString()};
   }else if(state.followup.type==='appointment_next'){
     opts={
       title:displayTitle(followSource),kind:'watch',area:followSource.area,
@@ -1411,10 +1500,12 @@ const cancelDeferDate=$('#cancelDeferDate');if(cancelDeferDate)cancelDeferDate.o
 const saveDeferDate=$('#saveDeferDate');if(saveDeferDate)saveDeferDate.onclick=()=>{const x=state.items.find(i=>i.id===state.deferFor);const v=$('#deferDate').value;if(!x||!v)return toast('Vyber datum.');postponeToDate(x,dateFromInput(v));};
 const cancelRescheduleDate=$('#cancelRescheduleDate');if(cancelRescheduleDate)cancelRescheduleDate.onclick=()=>{state.rescheduleFor=null;render()};
 const saveRescheduleDate=$('#saveRescheduleDate');if(saveRescheduleDate)saveRescheduleDate.onclick=()=>{const x=state.items.find(i=>i.id===state.rescheduleFor);const v=$('#rescheduleDate').value;if(!x||!v)return toast('Vyber datum.');rescheduleItem(x,dateFromInput(v));};
+const cancelDeleteOne=$('#cancelDeleteOne');if(cancelDeleteOne)cancelDeleteOne.onclick=()=>{state.deleteOneFor=null;render()};
+const confirmDeleteOne=$('#confirmDeleteOne');if(confirmDeleteOne)confirmDeleteOne.onclick=()=>{const id=state.deleteOneFor;state.deleteOneFor=null;if(id)removeItemsPermanently([id]);state.detail=null;state.editing=null;toast('Věc byla smazaná.')};
 const x=state.items.find(i=>i.id===state.detail);if(x){
   const complete=$('#completeAction');if(complete)complete.onclick=()=>completeItem(x);
   const secondary=$('#secondaryAction');if(secondary)secondary.onclick=()=>{const ap=actionProfile(x);if(ap.secondaryMode==='reschedule'){state.rescheduleFor=x.id;state.detail=null;render()}else{state.deferFor=x.id;state.deferCustom=false;state.detail=null;render()}};
-  const del=$('#delete');if(del)del.onclick=()=>{removeItemsPermanently([x.id]);state.detail=null;state.editing=null;toast('Smazáno bez návaznosti.');}
+  const del=$('#delete');if(del)del.onclick=()=>{state.detail=null;state.deleteOneFor=x.id;render()};
 }}
 function previewAreaOptions(x){const areas=allAreas();if(x.area&&!areas.includes(x.area))areas.push(x.area);return areas.map(a=>`<option value="${esc(a)}" ${x.area===a?'selected':''}>${esc(areaLabel(a))}${areaHidden(a)?' (skrytá)':''}</option>`).join('')+`<option value="__new_category__">＋ Vytvořit novou kategorii…</option>`}
 function previewDateValue(x){return dateInputValue(x.kind==='voucher'?x.expires:(x.due||null))}
@@ -1468,7 +1559,7 @@ function bindPreviewDraft(){
   $$('[data-preview-daypart]').forEach(el=>el.onchange=()=>{const x=state.addDraft[+el.dataset.previewDaypart];if(x)x.daypart=el.value||null});
 }
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.4.16';
+const APP_VERSION='0.4.17';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
