@@ -112,7 +112,7 @@ const BUILTIN_AREAS=['Já','Rodina','Ben','Vozidla','Zdraví','Dům','Smlouvy','
 const BUILTIN_DEFAULTS={
   'Já':{label:'Já',emoji:'👤',color:'#64748b',keywords:[]},
   'Rodina':{label:'Rodina',emoji:'👨‍👩‍👧',color:'#ec4899',keywords:[]},
-  'Ben':{label:'Ben',emoji:'🐾',color:'#14b8a6',keywords:[]},
+  'Ben':{label:'Mazlíčci',emoji:'🐾',color:'#14b8a6',keywords:[]},
   'Vozidla':{label:'Vozidla',emoji:'🚗',color:'#3b82f6',keywords:[]},
   'Zdraví':{label:'Zdraví',emoji:'🩺',color:'#ef4444',keywords:[]},
   'Dům':{label:'Dům',emoji:'🏠',color:'#f59e0b',keywords:[]},
@@ -151,6 +151,7 @@ function updateCategoryOrder(visibleOrdered){
 }
 
 if(!learning.areaTokens)learning.areaTokens={};
+if(!learning.personAreas)learning.personAreas={};
 function savePersonalization(){try{localStorage.setItem('projectD-custom-areas',JSON.stringify(customAreas));localStorage.setItem('projectD-builtin-area-settings',JSON.stringify(builtinSettings));localStorage.setItem('projectD-learning',JSON.stringify(learning))}catch{}}
 function isBuiltinArea(area){return BUILTIN_AREAS.includes(area)}
 function builtinAreaConfig(area){const d=BUILTIN_DEFAULTS[area]||{label:area,emoji:'●',color:CATEGORY_COLORS[0],keywords:[]};const u=builtinSettings[area]||{};return{label:u.label||d.label,emoji:u.emoji||d.emoji,color:u.color||d.color,keywords:Array.isArray(u.keywords)?u.keywords:[],hidden:!!u.hidden}}
@@ -171,7 +172,7 @@ function customAreaFromKeywords(text){
   return bestScore>0?best:null
 }
 function meaningfulTokens(text){
-  const stop=new Set(['jsem','jsi','jsme','jste','bude','budu','budes','být','byt','mam','mám','musim','musím','chci','potrebuji','potřebuji','dnes','zítra','zitra','pozítří','pozitri','tento','tahle','tohle','něco','neco','prosím','prosim','pak','ještě','jeste','aby','jako','který','ktera','která','které','ktere','když','kdyz','do','na','ve','od','za','pro','se','si','mi','mu','ho','ji','a','i','v','z','s','u','k','ke']);
+  const stop=new Set(['jsem','jsi','jsme','jste','bude','budu','budes','být','byt','mam','mám','musim','musím','chci','potrebuji','potřebuji','dnes','zítra','zitra','pozítří','pozitri','tento','tahle','tohle','něco','neco','prosím','prosim','pak','ještě','jeste','aby','jako','který','ktera','která','které','ktere','když','kdyz','do','na','ve','od','za','pro','se','si','mi','mu','ho','ji','a','i','v','z','s','u','k','ke','zavolat','volat','napsat','poslat','domluvit','objednat','pripomen','pripomenout','zkontrolovat','zapsat','zavolani','telefonat','hovor','vecer','rano','odpoledne','dopoledne']);
   return [...new Set(String(text||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').split(/[^a-z0-9]+/).filter(w=>w.length>=3&&!stop.has(w)))].slice(0,12)
 }
 function customAreaFromKeywords(text){
@@ -203,6 +204,52 @@ function learnAreaChoice(text,chosenArea,previousArea){
     learning.areaTokens[tok][chosenArea]=(learning.areaTokens[tok][chosenArea]||0)+1;
   }
   savePersonalization();
+}
+
+// Jmena lidi nejsou pevne zadratovana do aplikace. Uzivatel nemusi zakladat profily.
+// Pokud jedna konkretni osoba dostane pri oprave kategorii, pamatuje si ji pro priste.
+const PERSON_IGNORED=new Set(['Zavolat','Napsat','Poslat','Domluvit','Objednat','Připomeň','Připomenout','Zkontrolovat','Zaplatit','Čekám','Zapsat','Dnes','Zítra','Pozítří','Pondělí','Úterý','Středa','Čtvrtek','Pátek','Sobota','Neděle','Lednu','Únoru','Březnu','Dubnu','Květnu','Červnu','Červenci','Srpnu','Září','Říjnu','Listopadu','Prosinci','Rodina','Práce','Finance','Já','Internet','Smlouva','Koupit','Připravit','Stříhání','Očkování','STK','BMW','Octavia','Auto','Banky']);
+function personKey(name){
+  let n=normalizedText(name).replace(/[^a-z]/g,'');
+  if(n.length<3)return'';
+  // Bezpecne, casto pouzivane pady muzskych jmen: Lubosovi/Lubosem, Petrovi/Petrem.
+  if(n.endsWith('ovi')&&n.length>=6)n=n.slice(0,-3);
+  else if(n.endsWith('em')&&n.length>=6)n=n.slice(0,-2);
+  else if(n.endsWith('e')&&n.length>=6&&/[szc]e$/.test(n))n=n.slice(0,-1);
+  return n;
+}
+function candidatePeople(text){
+  const raw=String(text||'');
+  const words=[...raw.matchAll(/(?:^|[\s,;:])([A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][a-záčďéěíňóřšťúůýž]{2,})(?=$|[\s,;:.!?])/gu)];
+  return [...new Set(words.map(m=>m[1]).filter(w=>!PERSON_IGNORED.has(w)).map(personKey).filter(Boolean))];
+}
+function explicitHumanRelation(text){
+  const t=normalizedText(text);
+  if(/\b(?:partner|partnera|partnerovi|partnerkou|partnerce|manzel|manzelka|pritel|pritelem|pritelkyn|mamce|tata|mamink|bratr|sestra|synovi|dcera|rodice)/.test(t))return'Rodina';
+  if(/\b(?:koleg|kolegy|kolegov|sef|zamestnavatel|pracovn|zakaznik)/.test(t))return'Práce';
+  if(/\b(?:kamarad|kamos|kamoska|kamarád)/.test(t))return'Já';
+  return null;
+}
+function specificTopicOverride(text){
+  const t=normalizedText(text);
+  // Silnejsi zamer ukolu ma prednost pred vztahem s osobou.
+  if(/\b(?:prace|praci|pracovni|zakaznik|firma|faktura|nabidka|schuzka s kolegou)/.test(t))return'Práce';
+  if(/\b(?:smlouva|smlouvu|internet|tarif|dodavatel)/.test(t))return'Smlouvy';
+  if(/\b(?:hypotek|hypotec|banka|uver|ucet|rozpocet)/.test(t))return'Finance';
+  return null;
+}
+function rememberedPersonArea(text){
+  const xs=candidatePeople(text),found=[...new Set(xs.map(k=>learning.personAreas[k]).filter(Boolean))];
+  return found.length===1 && allAreas().includes(found[0])?found[0]:null;
+}
+function rememberPeople(text,area,wasCorrected){
+  if(!area||!allAreas({includeHidden:true}).includes(area))return;
+  const relation=explicitHumanRelation(text);
+  const people=candidatePeople(text);
+  // Vyzaduje bud vylozeny kontext (partner, kamaradka, kolega), nebo opravu uzivatele.
+  if(!(wasCorrected||relation===area))return;
+  for(const p of people)learning.personAreas[p]=area;
+  if(people.length)savePersonalization();
 }
 
 function normalizeItem(x){
@@ -252,7 +299,7 @@ function haltVoiceOnNavigation(){
   voiceInput.recognition=null;voiceInput.active=false;voiceInput.starting=false;voiceInput.stopping=false;
   if(r){try{r.abort()}catch(e){}}
 }
-function focusVoiceKeyboard(message='Na klávesnici iPhonu klepni na mikrofon. Nadiktovaný text se objeví v poli a D ho zpracuje stejně jako psaní.'){
+function focusVoiceKeyboard(message='Na klávesnici telefonu klepni na mikrofon. Nadiktovaný text se objeví v poli a D ho zpracuje stejně jako psaní.'){
   voiceStatus(message,true);
   const t=$('#newText');if(t){t.focus();try{t.setSelectionRange(t.value.length,t.value.length)}catch(e){}}
 }
@@ -265,7 +312,7 @@ function stopVoiceInput(){
 function beginVoiceInput(){
   if(voiceInput.active||voiceInput.starting){stopVoiceInput();return}
   const Constructor=voiceConstructor();
-  if(!Constructor){focusVoiceKeyboard('Tento prohlížeč neumí přímo přepisovat řeč. Použij mikrofon na klávesnici iPhonu.');return}
+  if(!Constructor){focusVoiceKeyboard('Tento prohlížeč neumí přímo přepisovat řeč. Použij mikrofon na klávesnici telefonu.');return}
   // start() musi byt primo v reakci na klepnuti; prohlizec pak vyzada opravneni.
   let recognition;try{recognition=new Constructor()}catch(e){focusVoiceKeyboard();return}
   const session=++voiceInput.session;
@@ -289,9 +336,9 @@ function beginVoiceInput(){
     if(err==='aborted')return;
     voiceInput.starting=false;
     if(err==='no-speech'){voiceStatus('Nic jsem nezachytila. Zkus to znovu nebo použij diktování klávesnice.',true);return}
-    if(err==='not-allowed'||err==='service-not-allowed'){voiceStatus('Rozpoznávání řeči nemá povolení nebo není dostupné. Použij mikrofon na klávesnici iPhonu.',true);return}
-    if(err==='network'){voiceStatus('Služba rozpoznávání není dostupná. Zkus to znovu nebo mikrofon na klávesnici iPhonu.',true);return}
-    voiceStatus('Přímé rozpoznávání se nepodařilo. Můžeš použít mikrofon na klávesnici iPhonu.',true);
+    if(err==='not-allowed'||err==='service-not-allowed'){voiceStatus('Rozpoznávání řeči nemá povolení nebo není dostupné. Použij mikrofon na klávesnici telefonu.',true);return}
+    if(err==='network'){voiceStatus('Služba rozpoznávání není dostupná. Zkus to znovu nebo mikrofon na klávesnici telefonu.',true);return}
+    voiceStatus('Přímé rozpoznávání se nepodařilo. Můžeš použít mikrofon na klávesnici telefonu.',true);
   };
   recognition.onend=()=>{
     if(session!==voiceInput.session)return;
@@ -305,9 +352,9 @@ function beginVoiceInput(){
     recognition.start();
     voiceInput.startTimer=setTimeout(()=>{
       if(session!==voiceInput.session||!voiceInput.starting)return;
-      haltVoiceOnNavigation();focusVoiceKeyboard('Mikrofon se nepodařilo spustit. Zkus diktování přes mikrofon na klávesnici iPhonu.');
+      haltVoiceOnNavigation();focusVoiceKeyboard('Mikrofon se nepodařilo spustit. Zkus diktování přes mikrofon na klávesnici telefonu.');
     },10000);
-  }catch(e){haltVoiceOnNavigation();focusVoiceKeyboard('Přímé rozpoznávání se nespustilo. Použij mikrofon na klávesnici iPhonu.')}
+  }catch(e){haltVoiceOnNavigation();focusVoiceKeyboard('Přímé rozpoznávání se nespustilo. Použij mikrofon na klávesnici telefonu.')}
 }
 
 const state={tab:'today',items:normalizeItems(loadLocal()),detail:null,historyFor:null,toast:null,undo:null,editing:null,manageMode:false,selectedIds:[],manageOpenAreas:[],manageHiddenOpen:false,manageAdvancedOpen:false,confirmDelete:null,voucherListReturn:false,deferFor:null,deferCustom:false,rescheduleFor:null,followup:null,followupCustom:false,followupMode:null,addText:'',addDraft:[],categoryEditor:null,categoryColor:CATEGORY_COLORS[0],hiddenCategoriesOpen:false,categoryMenuFor:null,categorySelectMode:false,selectedCategories:[],categoryDeleteConfirm:null};
@@ -320,7 +367,7 @@ async function hydrateStorage(){try{const stored=await idbGet();if(Array.isArray
 function demo(){const now=today0();const add=n=>new Date(now.getTime()+n*dayMs).toISOString();return[
 {id:uid(),title:'Zaplatit pojištění auta',kind:'todo',area:'Vozidla',entity:'Auto',topic:'Pojištění',status:'active',due:add(1),attention:add(0),icon:'🚗',priority:'urgent',created:new Date().toISOString()},
 {id:uid(),title:'Zavolat zákazníkovi',kind:'todo',area:'Práce',status:'active',due:add(0),attention:add(0),icon:'📞',priority:'soon',created:new Date().toISOString()},
-{id:uid(),title:'Objednat Bena na stříhání',kind:'watch',area:'Ben',status:'active',due:add(9),attention:add(9),icon:'✂️',created:new Date().toISOString()},
+{id:uid(),title:'Objednat mazlíčka na stříhání',kind:'watch',area:'Ben',status:'active',due:add(9),attention:add(9),icon:'✂️',created:new Date().toISOString()},
 {id:uid(),title:'Zubař',kind:'watch',area:'Zdraví',status:'active',due:add(28),attention:add(28),icon:'🦷',created:new Date().toISOString()},
 {id:uid(),title:'Servis auta',kind:'waiting',area:'Vozidla',entity:'Auto',topic:'Servis',status:'active',since:add(-4),attention:add(1),icon:'🔧',created:new Date().toISOString()},
 {id:uid(),title:'Reklamace sluchátek',kind:'waiting',area:'Osobní',status:'active',since:add(-12),attention:add(2),icon:'🎧',created:new Date().toISOString()},
@@ -362,15 +409,62 @@ function seasonPeriod(text){const l=text.toLowerCase();const now=today0();let m=
 function temporalInfo(text){const exact=parseDate(text);if(exact)return{date:exact,periodLabel:null,exact:true};const rp=relativePeriod(text);if(rp)return{date:rp.date,periodLabel:rp.label,exact:false};const mp=monthPeriod(text);if(mp)return{date:mp.date,periodLabel:mp.label,exact:false};const sp=seasonPeriod(text);if(sp)return{date:sp.date,periodLabel:sp.label,exact:false};return{date:null,periodLabel:null,exact:false}}
 function minusMonth(date){const d=new Date(date);const original=d.getDate();d.setMonth(d.getMonth()-1);if(d.getDate()!==original)d.setDate(0);return d}
 function money(text){const m=text.match(/(?:za|v hodnotě|hodnota)?\s*(\d[\d\s.]*)\s*(?:kč|korun)/i);return m?parseInt(m[1].replace(/[\s.]/g,''),10):null}
-function detectArea(text){const personal=customAreaFromKeywords(text);if(personal)return personal;const learned=learnedAreaFromText(text);if(learned)return learned;const l=text.toLowerCase();let area='Já';
+
+// Univerzální mazlíčci: „Ben“ zůstává pouze interní historický klíč oblasti,
+// aby aktualizace neodstranila uživatelům jejich data ani úpravy kategorií.
+// Žádný uživatel nemusí předem vytvářet profily zvířat.
+const PET_AREA='Ben';
+let previewPetNames=[];
+function petContext(text){
+  const l=normalizedText(text);
+  return /veterinar|veterin|granul|voditk|obojk|pejsk|psa(?:\s|$)|psi(?:\s|$)|fenk|kock|kocour|kotat|papous|krecek|kreck|kralik|morc|rybick|akvar|zvirat|mazlic|kon[eě](?:\s|$)|staj|klec|pelis|krmiv/.test(l)
+    || /objednat\s+[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][\p{L}]+\s+na\s+(?:stri|stří)h[aá]n[ií]/iu.test(String(text));
+}
+function petNameInText(text){
+  const t=String(text||'');
+  const name=String.raw`([A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][\p{L}]{1,25})`;
+  // Rozlišujeme vlastní jména od obecných druhů (např. králík, kočka).
+  const patterns=[
+    new RegExp(String.raw`(?:^|\s)(?:pro|kvůli|kvuli|o|s|se)\s+`+name+String.raw`(?=\s|$|[.,!?])`,'u'),
+    new RegExp(String.raw`(?:^|\s)(?:objednat|ostříhat|ostrihat|vykoupat|připravit|pripravit|nakrmit)\s+`+name+String.raw`(?=\s|$|[.,!?])`,'u'),
+    new RegExp(String.raw`(?:^|\s)(?:stříhání|strihani|očkování|ockovani|krmení|krmeni)\s+`+name+String.raw`(?=\s|$|[.,!?])`,'u'),
+    new RegExp(String.raw`(?:^|\s)(?:psa|pes|kočku|kocku|kočka|kocka|kocoura|papouška|papouska|křečka|krecka|koně|kone|mazlíčka|mazlicka)\s+`+name+String.raw`(?=\s|$|[.,!?])`,'u')
+  ];
+  for(const pat of patterns){const m=t.match(pat);if(m)return m[1]}
+  return null;
+}
+function petCanonicalName(raw){
+  if(!raw)return null;
+  let n=String(raw).trim();
+  // Nejnutnější české tvary: Andyho/Andymu/Andym -> Andy, Bena/Benovi -> Ben.
+  if(/y(?:ho|mu|m)$/iu.test(n))n=n.replace(/(?:ho|mu|m)$/iu,'');
+  else if(/ovi$/iu.test(n)&&n.length>5)n=n.slice(0,-3);
+  else if(/a$/iu.test(n)&&n.length>3&&!/ína$/iu.test(n))n=n.slice(0,-1);
+  else if(/(?:íno|ínu)$/iu.test(n))n=n.slice(0,-1)+'a';
+  return n[0].toUpperCase()+n.slice(1);
+}
+function knownPetNames(){
+  const stored=(typeof state!=='undefined'&&state.items||[]).filter(x=>x.area===PET_AREA)
+    .map(x=>x.entity&&x.entity!=='Ben'?x.entity:petCanonicalName(petNameInText(x.title||x.raw||'')));
+  return [...new Set([...stored,...previewPetNames].filter(Boolean).map(petCanonicalName))];
+}
+function mentionsPetName(text,name){
+  const hay=normalizedText(text),base=normalizedText(name);
+  return base.length>=3&&new RegExp('(?:^|[^a-z])'+base+'(?:ho|mu|ovi|em|m|a|u|e)?(?=$|[^a-z])').test(hay);
+}
+function mentionsKnownPet(text){
+  return knownPetNames().some(name=>mentionsPetName(text,name));
+}
+
+function detectArea(text){const personal=customAreaFromKeywords(text);if(personal)return personal;const relation=explicitHumanRelation(text);if(relation)return areaHidden(relation)?fallbackArea():relation;const topicOverride=specificTopicOverride(text);if(topicOverride)return areaHidden(topicOverride)?fallbackArea():topicOverride;const remembered=rememberedPersonArea(text);if(remembered)return remembered;const learned=learnedAreaFromText(text);if(learned)return learned;const l=text.toLowerCase();let area='Já';
 if(/\baut(?:o|a)\b|automobil|vozidl|\bvůz\b|\bvuz\b|\bvozu\b|motork|motocykl|skútr|skutr|dodávk|dodavk|kamion|nákladn[ií]\s+(?:auto|auta|vůz|vuz|vozu|vozidlo)|přívěs|prives|návěs|naves|traktor|\bstk\b|technick|servis.*(?:auto|auta|vozu|vozidla|motork)|pojištěn[ií].*(?:auto|auta|vozidla|motork)|pneumatik|přez|prez|dálniční\s+známk|dalnicni\s+znamk|emise/.test(l))area='Vozidla';
 else if(/smlouv|výpověd|internet|tarif|energie|dodavatel|pojištěn[ií]/.test(l))area='Smlouvy';
-else if(/rozpočet|spořic|spořen|účet|finance|finanč|investic|hypoték|úvěr|půjčk/.test(l))area='Finance';
+else if(/rozpočet|spořic|spořen|účet|finance|finanč|investic|hypoték|hypotéc|bank|úvěr|půjčk/.test(l))area='Finance';
 else if(/topen[ií]|kom[ií]n|kotel|dům|domě|domácnost|revize\s+(?:plynu|elektro)|střecha|okap/.test(l))area='Dům';
 else if(/rodin|rodič|prarodič|mam|mámě|mamce|mamince|matk|tát|tatín|otc|bratr|brách|brach|sestr|ségř|segr|babičk|\bbabi\b|děd|syn(?:ovi|a|em)?|dcer|dět|partner|manžel|tchyn|tchán|svagr|švagr|švagrov|neteř|synov|strýc|tet(?:a|ě|u|ou)|bratranc|sestřenic|vnuk|vnučk/.test(l))area='Rodina';
 else if(/kadeř|dovolen|osobn[ií]|pro\s+sebe/.test(l))area='Já';
 else if(/zahrad|levand|okrasn|trávník|trávy|strom|hnojiv|keř|záhon/.test(l))area='Zahrada';
-else if(/ben(?:a|ovi|em)?|pro\s+bena|pes|veterin|granul/.test(l))area='Ben';
+else if(petContext(text)||mentionsKnownPet(text))area=PET_AREA;
 else if(/zubař|doktor|lékař|preventiv|ordinac|očkován/.test(l))area='Zdraví';
 else if(/nabídk|zákazník|firma|práce|kolega|novák/.test(l))area='Práce';
 return isBuiltinArea(area)&&areaHidden(area)?fallbackArea():area}
@@ -383,7 +477,7 @@ function detectEntity(text,area){const l=text.toLowerCase();
       ['Neteř',/neteř/],['Synovec',/synov/],['Strýc',/strýc/],['Teta',/tet(?:a|ě|u|ou)/],['Bratranec',/bratranc/],['Sestřenice',/sestřenic/],['Vnuk',/vnuk/],['Vnučka',/vnučk/]
     ];for(const [name,re] of family)if(re.test(l))return name;return null;
   }
-  if(area==='Ben')return'Ben';
+  if(area===PET_AREA)return petCanonicalName(petNameInText(text))||knownPetNames().find(n=>mentionsPetName(text,n))||null;
   if(area==='Vozidla')return vehicleEntityFromText(text)||'Vozidlo';
   if(area==='Dům'){if(/topen/.test(l))return'Topení';if(/kom[ií]n/.test(l))return'Komín';if(/kotel/.test(l))return'Kotel';if(/stře/.test(l))return'Střecha';if(/okap/.test(l))return'Okapy';if(/revize/.test(l))return'Revize';return null}
   if(area==='Smlouvy'){if(/internet/.test(l))return'Internet';if(/pojištěn/.test(l))return'Pojištění';if(/energie|dodavatel/.test(l))return'Energie';if(/tarif/.test(l))return'Tarif';return null}
@@ -446,7 +540,6 @@ function conciseAction(text,area=''){
   // Přirozené české zadání „se objednat“ / „si to zapsat“ převedeme na infinitiv.
   t=t.replace(/^se\s+(objednat|přihlásit|rezervovat)(?=\s|$)/i,(_,v)=>v+' se');
   t=t.replace(/^si\s+to\s+(zapsat|poznamenat)(?=\s|$)/i,(_,v)=>v+' si to');
-  if(area==='Ben'&&/^objednat\s+(?:beníka|bena)\s+(?:na\s+)?stříhání(?=\s|$)/i.test(t))t='Objednat stříhání Bena';
   t=t.replace(/\s{2,}/g,' ').replace(/[.!?]+$/,'').trim();
   return t?t.charAt(0).toUpperCase()+t.slice(1):String(text||'').trim();
 }
@@ -500,11 +593,15 @@ function splitInput(text){
   });
   return out;
 }
-function parseMany(text){return splitInput(text).map(parse)}
+function parseMany(text){
+  const lines=splitInput(text),oldNames=previewPetNames;
+  previewPetNames=[...new Set(lines.filter(petContext).map(petNameInText).map(petCanonicalName).filter(Boolean))];
+  try{return lines.map(parse)}finally{previewPetNames=oldNames}
+}
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.13</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.14</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -617,7 +714,7 @@ const hiddenCard=hidden.length
   ?`<div class="calm" id="hiddenSummary" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px"><div><strong>${hiddenText} hlídám.</strong>Dnes je řešit nemusíš.</div><div class="right">›</div></div>`
   :`<div class="calm"><strong>Nic dalšího není schované.</strong>Všechno, co D teď hlídá, už vidíš výše.</div>`;
 return `${header()}<div class="eyebrow">${greeting()}</div><h1 class="title">Dnes potřebují tvoji pozornost ${attentionText}.</h1>${overdueBox}${needs.length?`<div class="card">${needs.map((x,i)=>itemHtml(x,i===0&&x.priority==='urgent'?'urgent':x.priority==='soon'?'soon':'')).join('')}</div>`:`<div class="calm"><strong>Dnes nic nehoří.</strong>Můžeš nechat hlavu chvíli vypnutou.</div>`}${shoppingCard}${soon.length?`<div class="section"><div class="sectionHead"><h2>Brzy</h2></div><div class="card">${soon.map(x=>itemHtml(x)).join('')}</div></div>`:''}${wait.length?`<div class="section"><div class="sectionHead"><h2>Čekám na</h2></div><div class="card">${wait.map(x=>itemHtml(x)).join('')}</div></div>`:''}${vouchers.length?`<div class="section"><button type="button" class="voucherSummary voucherSummaryButton" id="voucherSummary" aria-label="Otevřít ${vouchers.length} aktivní poukazy v celkové hodnotě ${value.toLocaleString('cs-CZ')} Kč. ${esc(nearestVoucherText)}"><div class="smallLabel">Aktivní poukazy</div><div class="big">${vouchers.length} · ${value.toLocaleString('cs-CZ')} Kč</div><div class="voucherNearest">${esc(nearestVoucherText)}</div>${nearestVoucher?`<div class="smallLabel">${esc(cardTitle(nearestVoucher))}</div>`:''}<span class="voucherSummaryChevron" aria-hidden="true">›</span></button></div>`:''}${hiddenCard}`}
-function add(){return `${header()}<h1 class="title">Přidat</h1><p class="subtitle">Co nechceš držet v hlavě?</p><div class="addGrid"><button type="button" id="voiceButton" class="action ${voiceInput.active?'voiceListening':''}" aria-pressed="${voiceInput.active?'true':'false'}"><span class="voiceGlyph" style="font-size:24px">🎙️</span><b id="voiceButtonLabel">${voiceInput.active?'Zastavit':'Namluvit'}</b><small id="voiceButtonHint">${voiceInput.active?'poslouchám česky':'hlasové zadání'}</small></button><button type="button" id="writeButton" class="action"><span style="font-size:24px">✍️</span><b>Napsat</b><small>textové zadání</small></button></div><div id="voiceMessage" class="voiceMessage ${voiceInput.active?'listening':voiceInput.warning?'warning':''}" role="status" aria-live="polite">${esc(voiceInput.message||'Nadiktovaný text si před uložením zkontroluj.')}</div><button type="button" id="voiceKeyboardHelp" class="voiceKeyboardHelp">Diktování mikrofonem klávesnice iPhonu</button><textarea id="newText" aria-label="Text zadání" placeholder="Např. Připomeň mi zavolat dodavateli energie v úterý. Nebo koupit granule pro Bena.">${esc(state.addText||'')}</textarea><div id="preview">${state.addDraft.length?previewMany(state.addDraft):''}</div><button class="primary" id="saveItem">Uložit</button><div class="smallLabel" style="text-align:center;margin-top:10px">D navrhne zařazení. Před uložením ho můžeš opravit.</div>`}
+function add(){return `${header()}<h1 class="title">Přidat</h1><p class="subtitle">Co nechceš držet v hlavě?</p><div class="addGrid"><button type="button" id="voiceButton" class="action ${voiceInput.active?'voiceListening':''}" aria-pressed="${voiceInput.active?'true':'false'}"><span class="voiceGlyph" style="font-size:24px">🎙️</span><b id="voiceButtonLabel">${voiceInput.active?'Zastavit':'Namluvit'}</b><small id="voiceButtonHint">${voiceInput.active?'poslouchám česky':'hlasové zadání'}</small></button><button type="button" id="writeButton" class="action"><span style="font-size:24px">✍️</span><b>Napsat</b><small>textové zadání</small></button></div><div id="voiceMessage" class="voiceMessage ${voiceInput.active?'listening':voiceInput.warning?'warning':''}" role="status" aria-live="polite">${esc(voiceInput.message||'Nadiktovaný text si před uložením zkontroluj.')}</div><button type="button" id="voiceKeyboardHelp" class="voiceKeyboardHelp">Diktování mikrofonem klávesnice</button><textarea id="newText" aria-label="Text zadání" placeholder="Např. Připomeň mi zavolat dodavateli energie v úterý. Nebo koupit granule pro Andyho.">${esc(state.addText||'')}</textarea><div id="preview">${state.addDraft.length?previewMany(state.addDraft):''}</div><button class="primary" id="saveItem">Uložit</button><div class="smallLabel" style="text-align:center;margin-top:10px">D navrhne zařazení. Před uložením ho můžeš opravit.</div>`}
 function listTab(kind,title,sub){let arr=state.items.filter(x=>x.status==='active'&&(kind==='watch'?x.kind!=='waiting'&&x.kind!=='shopping':x.kind===kind));return `${header()}<h1 class="title">${title}</h1><p class="subtitle">${sub}</p><div class="search"><input id="search" placeholder="Hledat…"><button class="secondary">Vše</button></div><div id="list">${arr.length?`<div class="card">${arr.map(x=>itemHtml(x)).join('')}</div>`:`<div class="empty">Zatím je tu prázdno.</div>`}</div>`}
 function hiddenAreaRow(a){
   const builtin=isBuiltinArea(a),count=categoryRecordCount(a);
@@ -668,10 +765,11 @@ function appointmentTopicFromItem(x){
 }
 function appointmentTitleFromItem(x){
   const topic=appointmentTopicFromItem(x);
-  if(x.area==='Ben'){
-    if(topic==='Stříhání')return'Stříhání Bena';
-    if(topic==='Očkování')return'Očkování Bena';
-    if(topic==='Veterina'||topic==='Lékař')return'Veterina – Ben';
+  if(x.area===PET_AREA){
+    const name=x.entity&&x.entity!=='Ben'?x.entity:null;
+    if(topic==='Stříhání')return name?`Stříhání – ${name}`:'Stříhání mazlíčka';
+    if(topic==='Očkování')return name?`Očkování – ${name}`:'Očkování mazlíčka';
+    if(topic==='Veterina'||topic==='Lékař')return name?`Veterinář – ${name}`:'Veterinář';
   }
   if(x.area==='Vozidla'&&topic==='Servis')return x.entity&&x.entity!=='Vozidlo'?`Servis – ${x.entity}`:'Servis vozidla';
   if(['Kadeřník','Zubař','Lékař','Servis'].includes(topic))return topic;
@@ -691,8 +789,8 @@ function appointmentDoneLabel(x){
 function routineKey(x){
   const l=textOf(x),entity=(x.entity||'').toLowerCase();
   if(/kadeř|holič/.test(l))return'ja|kadernik';
-  if(x.area==='Ben'&&/stříh/.test(l))return'ben|strihani';
-  if(x.area==='Ben'&&/(vykoupat|koupat|koupání|koupani|umýt|umyt)/.test(l))return'ben|koupani';
+  if(x.area===PET_AREA&&/stříh/.test(l))return`mazlicci|${normalizedText(x.entity||'neznamy')}|strihani`;
+  if(x.area===PET_AREA&&/(vykoupat|koupat|koupání|koupani|umýt|umyt)/.test(l))return`mazlicci|${normalizedText(x.entity||'neznamy')}|koupani`;
   if(x.area==='Vozidla'&&/(umýt|umyt|mytí|myti|myčka|mycka)/.test(l))return`vozidla|${entity}|myti`;
   if(x.area==='Zdraví'&&/zubař|dent/.test(l))return'zdravi|zubar';
   if(x.area==='Zahrada'&&/levand/.test(l))return'zahrada|levandule';
@@ -1216,7 +1314,7 @@ $$('[data-delete-hidden-area]').forEach(b=>b.onclick=e=>{e.stopPropagation();con
 const cancelCategory=$('#cancelCategory');if(cancelCategory)cancelCategory.onclick=()=>{state.categoryEditor=null;render()};
 $$('[data-emoji]').forEach(b=>b.onclick=()=>{const el=$('#categoryEmoji');if(el)el.value=b.dataset.emoji});
 $$('[data-cat-color]').forEach(b=>b.onclick=()=>{state.categoryColor=b.dataset.catColor;if(state.categoryEditor)state.categoryEditor.color=b.dataset.catColor;$$('[data-cat-color]').forEach(x=>x.classList.toggle('selected',x.dataset.catColor===state.categoryColor));});
-const saveCategory=$('#saveCategory');if(saveCategory)saveCategory.onclick=()=>{const name=$('#categoryName').value.trim(),emoji=$('#categoryEmoji').value.trim(),keywords=$('#categoryKeywords').value.split(',').map(x=>x.trim()).filter(Boolean),color=state.categoryColor||CATEGORY_COLORS[0],editor=state.categoryEditor||{};if(!name)return toast('Napiš název kategorie.');const labels=[...BUILTIN_AREAS.filter(k=>!(editor.mode==='builtin'&&k===editor.key)).map(areaLabel),...customAreas.filter(c=>!(editor.mode==='custom'&&c.name===editor.originalName)).map(c=>c.name)];if(labels.some(x=>x.toLowerCase()===name.toLowerCase()))return toast('Taková kategorie už existuje.');const assignIndex=editor.assignToDraftIndex;if(editor.mode==='builtin'){const key=editor.key,def=BUILTIN_DEFAULTS[key];builtinSettings[key]={label:name,emoji:emoji||def.emoji,keywords,color,hidden:!!builtinSettings[key]?.hidden};savePersonalization();state.items.forEach(i=>{if(i.area===key)i.icon=iconFor(i.kind,key)});save()}else{if(BUILTIN_AREAS.includes(name))return toast('Tento název používá interní základní oblast.');const old=editor.originalName;if(old){const c=customAreaByName(old);if(c){c.name=name;c.emoji=emoji;c.keywords=keywords;c.color=color}if(old!==name){categoryOrder=categoryOrder.map(a=>a===old?name:a);saveCategoryOrder();state.items.forEach(i=>{if(i.area===old)i.area=name});for(const row of Object.values(learning.areaTokens||{})){if(row&&row[old]){row[name]=(row[name]||0)+row[old];delete row[old]}}}}else customAreas.push({name,emoji,keywords,color,hidden:false});savePersonalization();save();if(Number.isInteger(assignIndex)&&state.addDraft[assignIndex])applyPreviewArea(state.addDraft[assignIndex],name)}state.categoryEditor=null;if(Number.isInteger(assignIndex)){render();toast('Kategorie vytvořená a přiřazená.')}else{render();toast('Kategorie je uložená.')}};
+const saveCategory=$('#saveCategory');if(saveCategory)saveCategory.onclick=()=>{const name=$('#categoryName').value.trim(),emoji=$('#categoryEmoji').value.trim(),keywords=$('#categoryKeywords').value.split(',').map(x=>x.trim()).filter(Boolean),color=state.categoryColor||CATEGORY_COLORS[0],editor=state.categoryEditor||{};if(!name)return toast('Napiš název kategorie.');const labels=[...BUILTIN_AREAS.filter(k=>!(editor.mode==='builtin'&&k===editor.key)).map(areaLabel),...customAreas.filter(c=>!(editor.mode==='custom'&&c.name===editor.originalName)).map(c=>c.name)];if(labels.some(x=>x.toLowerCase()===name.toLowerCase()))return toast('Taková kategorie už existuje.');const assignIndex=editor.assignToDraftIndex;if(editor.mode==='builtin'){const key=editor.key,def=BUILTIN_DEFAULTS[key];builtinSettings[key]={label:name,emoji:emoji||def.emoji,keywords,color,hidden:!!builtinSettings[key]?.hidden};savePersonalization();state.items.forEach(i=>{if(i.area===key)i.icon=iconFor(i.kind,key)});save()}else{if(BUILTIN_AREAS.includes(name))return toast('Tento název používá interní základní oblast.');const old=editor.originalName;if(old){const c=customAreaByName(old);if(c){c.name=name;c.emoji=emoji;c.keywords=keywords;c.color=color}if(old!==name){categoryOrder=categoryOrder.map(a=>a===old?name:a);saveCategoryOrder();state.items.forEach(i=>{if(i.area===old)i.area=name});for(const row of Object.values(learning.areaTokens||{})){if(row&&row[old]){row[name]=(row[name]||0)+row[old];delete row[old]}}for(const [person,area] of Object.entries(learning.personAreas||{})){if(area===old)learning.personAreas[person]=name}}}else customAreas.push({name,emoji,keywords,color,hidden:false});savePersonalization();save();if(Number.isInteger(assignIndex)&&state.addDraft[assignIndex])applyPreviewArea(state.addDraft[assignIndex],name)}state.categoryEditor=null;if(Number.isInteger(assignIndex)){render();toast('Kategorie vytvořená a přiřazená.')}else{render();toast('Kategorie je uložená.')}};
 const resetCategory=$('#resetCategory');if(resetCategory)resetCategory.onclick=()=>{const key=state.categoryEditor?.key;if(!key)return;const wasHidden=!!builtinSettings[key]?.hidden;delete builtinSettings[key];if(wasHidden)builtinSettings[key]={hidden:true};savePersonalization();state.items.forEach(i=>{if(i.area===key)i.icon=iconFor(i.kind,key)});save();state.categoryEditor=null;render();toast('Výchozí podoba je obnovená.');};
 
 const manageItems=$('#manageItems');if(manageItems)manageItems.onclick=()=>{state.manageMode=true;state.selectedIds=[];state.manageOpenAreas=[];state.manageHiddenOpen=false;state.manageAdvancedOpen=false;render()};
@@ -1243,12 +1341,12 @@ const voiceButton=$('#voiceButton');if(voiceButton)voiceButton.onclick=()=>begin
 const writeButton=$('#writeButton');if(writeButton)writeButton.onclick=()=>{if(voiceInput.active||voiceInput.starting)haltVoiceOnNavigation();voiceStatus('Napiš zadání a zkontroluj náhled.');const ta=$('#newText');if(ta)ta.focus()};
 const voiceKeyboardHelp=$('#voiceKeyboardHelp');if(voiceKeyboardHelp)voiceKeyboardHelp.onclick=()=>{if(voiceInput.active||voiceInput.starting)haltVoiceOnNavigation();focusVoiceKeyboard()};
 const ta=$('#newText');if(ta){ta.oninput=()=>{if(voiceInput.active||voiceInput.starting)haltVoiceOnNavigation();updateAddDraftFromInput(ta.value)};bindPreviewDraft()}
-const saveB=$('#saveItem');if(saveB)saveB.onclick=()=>{if(voiceInput.active||voiceInput.starting)haltVoiceOnNavigation();const t=state.addText.trim();if(!t)return toast('Napiš nejdřív jednu nebo více věcí.');const xs=state.addDraft.length?state.addDraft:parseMany(t);if(!xs.length)return toast('Nenašel jsem nic k uložení.');xs.forEach(x=>{learnAreaChoice(x.raw||x.title,x.area,x._originalArea);delete x._originalArea});state.items.unshift(...xs);save();state.addText='';state.addDraft=[];state.tab='today';toast(xs.length===1?'Mám to.':'Mám '+xs.length+' věcí.');}
+const saveB=$('#saveItem');if(saveB)saveB.onclick=()=>{if(voiceInput.active||voiceInput.starting)haltVoiceOnNavigation();const t=state.addText.trim();if(!t)return toast('Napiš nejdřív jednu nebo více věcí.');const xs=state.addDraft.length?state.addDraft:parseMany(t);if(!xs.length)return toast('Nenašel jsem nic k uložení.');xs.forEach(x=>{learnAreaChoice(x.raw||x.title,x.area,x._originalArea);rememberPeople(x.raw||x.title,x.area,x.area!==x._originalArea);delete x._originalArea});state.items.unshift(...xs);save();state.addText='';state.addDraft=[];state.tab='today';toast(xs.length===1?'Mám to.':'Mám '+xs.length+' věcí.');}
 const search=$('#search');if(search)search.oninput=()=>{const q=search.value.toLowerCase();$$('#list .item').forEach(el=>el.style.display=el.textContent.toLowerCase().includes(q)?'flex':'none')};
 const modalEl=$('#modal');if(modalEl)modalEl.onclick=e=>{if(e.target!==modalEl)return;if(state.categoryDeleteConfirm){state.categoryDeleteConfirm=null;render();return}if(state.categoryMenuFor){state.categoryMenuFor=null;render();return}if(state.categoryEditor){state.categoryEditor=null;render();return}if(state.historyFor){state.historyFor=null;render();return}if(!state.followup&&!state.deferFor&&!state.rescheduleFor){state.detail=null;state.voucherListReturn=false;state.editing=null;state.confirmDelete=null;render()}};
 const closeShopping=$('#closeShopping');if(closeShopping)closeShopping.onclick=()=>{state.detail=null;state.editing=null;render()};
 const cancelEdit=$('#cancelEdit');if(cancelEdit)cancelEdit.onclick=()=>{state.editing=null;render()};
-const saveEdit=$('#saveEdit');if(saveEdit)saveEdit.onclick=()=>{const x=state.items.find(i=>i.id===state.detail);if(!x)return;const previousArea=x.area;const title=$('#editTitle').value.trim();if(!title)return toast('Název nemůže být prázdný.');const kind=$('#editKind').value,area=$('#editArea').value,entity=$('#editEntity').value.trim()||null,topic=$('#editTopic').value.trim()||null,date=dateFromInput($('#editDate').value),val=parseInt($('#editValue').value||'0',10)||null;x.manualTitle=title;x.title=title;x.kind=kind;x.daypart=$('#editDaypart').value||null;x.area=area;x.entity=entity;x.topic=topic;x.icon=iconFor(kind,area);x.due=null;x.since=null;x.expires=null;x.periodLabel=null;x.snoozedUntil=null;x.value=kind==='voucher'?val:null;if(kind==='shopping'){x.attention=null}else if(kind==='waiting'){x.since=date||new Date().toISOString();x.attention=new Date(new Date(x.since).getTime()+5*dayMs).toISOString()}else if(kind==='voucher'){x.expires=date;x.attention=date?new Date(new Date(date).getTime()-30*dayMs).toISOString():null}else{x.due=date;x.attention=date||(kind==='todo'?new Date().toISOString():null)}if(area!==previousArea)learnAreaChoice(x.raw||title,area,previousArea);save();state.editing=null;toast('Uloženo.');};
+const saveEdit=$('#saveEdit');if(saveEdit)saveEdit.onclick=()=>{const x=state.items.find(i=>i.id===state.detail);if(!x)return;const previousArea=x.area;const title=$('#editTitle').value.trim();if(!title)return toast('Název nemůže být prázdný.');const kind=$('#editKind').value,area=$('#editArea').value,entity=$('#editEntity').value.trim()||null,topic=$('#editTopic').value.trim()||null,date=dateFromInput($('#editDate').value),val=parseInt($('#editValue').value||'0',10)||null;x.manualTitle=title;x.title=title;x.kind=kind;x.daypart=$('#editDaypart').value||null;x.area=area;x.entity=entity;x.topic=topic;x.icon=iconFor(kind,area);x.due=null;x.since=null;x.expires=null;x.periodLabel=null;x.snoozedUntil=null;x.value=kind==='voucher'?val:null;if(kind==='shopping'){x.attention=null}else if(kind==='waiting'){x.since=date||new Date().toISOString();x.attention=new Date(new Date(x.since).getTime()+5*dayMs).toISOString()}else if(kind==='voucher'){x.expires=date;x.attention=date?new Date(new Date(date).getTime()-30*dayMs).toISOString():null}else{x.due=date;x.attention=date||(kind==='todo'?new Date().toISOString():null)}if(area!==previousArea)learnAreaChoice(x.raw||title,area,previousArea);rememberPeople(x.raw||title,area,area!==previousArea);save();state.editing=null;toast('Uloženo.');};
 const editItem=$('#editItem');if(editItem)editItem.onclick=()=>{state.editing=state.detail;render()};
 const finishShopping=id=>{const item=state.items.find(i=>i.id===id);if(!item)return;item.status='done';save();state.undo={type:'shopping',id:item.id,title:displayTitle(item),label:'Koupeno'};if(undoTimer)clearTimeout(undoTimer);const remaining=state.items.some(i=>i.status==='active'&&i.kind==='shopping');if(state.detail==='__shopping__'&&!remaining)state.detail=null;render();undoTimer=setTimeout(()=>{if(state.undo&&state.undo.id===id){state.undo=null;render()}},5000)};
 $$('[data-shop-done]').forEach(b=>b.onclick=e=>{e.stopPropagation();finishShopping(b.dataset.shopDone)});
@@ -1370,7 +1468,7 @@ function bindPreviewDraft(){
   $$('[data-preview-daypart]').forEach(el=>el.onchange=()=>{const x=state.addDraft[+el.dataset.previewDaypart];if(x)x.daypart=el.value||null});
 }
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.4.13';
+const APP_VERSION='0.4.15';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
