@@ -81,6 +81,31 @@ body.categoryDragActive .tile{cursor:grabbing}
 .categoryArchiveItem{display:flex;width:100%;align-items:center;text-align:left;gap:10px;border:0;border-bottom:1px solid #edf1f2;background:#fff;color:#1c293d;padding:13px 11px}
 .categoryArchiveItem:last-child{border-bottom:0}.categoryArchiveCheck{color:#168660;font-size:19px;font-weight:900}
 .categoryArchiveMain{flex:1;min-width:0;display:grid;gap:3px}.categoryArchiveMain strong{font-size:13px;line-height:1.3}.categoryArchiveMain small{font-size:11px;color:#64748b}
+/* Chytrá historie: aktivní část zůstává před sbaleným archivem. */
+.historyPane{border:1px solid #e6ecea;background:#fff;border-radius:18px;padding:14px;margin:7px 0 18px;box-shadow:var(--shadow)}
+.historyPane h3{margin:4px 0 10px;font-size:14px;color:#526579;letter-spacing:.01em}
+.historyPaneNote{font-size:12px;line-height:1.5;color:#64748b;margin:10px 0}
+.historyFind{display:block;width:100%;padding:12px 13px;border:1px solid #dfe5e8;background:#fbfdfc;border-radius:13px;font-size:15px;outline:none;margin:3px 0 13px}
+.historyFind:focus{border-color:#7ecbab;box-shadow:0 0 0 3px #e8f7f1}
+.historyRecentBlock{margin:16px 0 12px}
+.historyRecentItem{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 2px;border-top:1px solid #edf1f1}
+.historyRecentItem:first-of-type{border-top:0}
+.historyRecentItem strong{display:block;font-size:14px;color:#223047}
+.historyRecentItem small{display:block;color:#64748b;font-size:12px;line-height:1.4;margin-top:3px}
+.historyRecentItem button{flex:0 0 auto;min-height:38px;min-width:35px;border:0;border-radius:12px;background:#f1f6f4;color:#47705f}
+.historyArchiveItem{display:flex;width:100%;border:0;border-bottom:1px solid #edf1f2;padding:13px 8px;background:#fff;text-align:left;align-items:center;gap:10px;color:#1c293d}
+.historyArchiveItem:last-child{border-bottom:0}.historyArchiveItem span:first-child{font-weight:800;color:#17805f}
+.historyArchiveItem .main{flex:1;min-width:0}.historyArchiveItem strong{display:block;font-size:13px;line-height:1.35}
+.historyArchiveItem small{display:block;font-size:11px;line-height:1.4;color:#64748b;margin-top:4px}
+.historyArchiveToolbar{border-top:1px solid #e9efeb;margin-top:13px;padding-top:12px}
+.historyArchiveLink{border:0;background:transparent;color:#16805e;font-weight:800;text-align:left;min-height:40px;padding:7px 0;width:100%}
+.historyMonth{border-top:1px solid #eef2ef}.historyMonth summary{list-style:none;cursor:pointer;padding:13px 7px;font-weight:750;font-size:14px;display:flex;justify-content:space-between;gap:10px}
+.historyMonth summary::-webkit-details-marker{display:none}.historyMonth summary::after{content:'⌄';font-size:16px;color:#64748b}
+.historyMonth[open] summary::after{content:'⌃'}
+.historyMonth .historyArchiveItem{padding-left:9px}
+.historyActualRow{padding:11px 13px;border:1px solid #e0eae5;border-radius:14px;margin-top:12px;background:#f7fbf9;font-size:13px;line-height:1.5}
+.historyActualRow button{margin-top:9px;background:white;border:1px solid #cee6dc;color:#147754;padding:10px 12px;border-radius:12px;width:100%;font-weight:800}
+.historyHint{color:#64748b;font-size:12px;margin-top:7px;line-height:1.45}
 </style>
 </head>
 <body>
@@ -363,7 +388,7 @@ function beginVoiceInput(){
   }catch(e){haltVoiceOnNavigation();focusVoiceKeyboard('Přímé rozpoznávání se nespustilo. Použij mikrofon na klávesnici telefonu.')}
 }
 
-const state={tab:'today',items:normalizeItems(loadLocal()),detail:null,historyFor:null,openArea:null,categoryHistoryOpen:false,deleteOneFor:null,toast:null,undo:null,editing:null,manageMode:false,selectedIds:[],manageOpenAreas:[],manageHiddenOpen:false,manageAdvancedOpen:false,confirmDelete:null,voucherListReturn:false,deferFor:null,deferCustom:false,rescheduleFor:null,followup:null,followupCustom:false,followupMode:null,addText:'',addDraft:[],categoryEditor:null,categoryColor:CATEGORY_COLORS[0],hiddenCategoriesOpen:false,categoryMenuFor:null,categorySelectMode:false,selectedCategories:[],categoryDeleteConfirm:null};
+const state={tab:'today',items:normalizeItems(loadLocal()),detail:null,historyFor:null,openArea:null,categoryHistoryOpen:false,categoryHistoryQuery:'',categoryHistoryLimit:25,categoryHistoryShowOld:false,categoryHistoryMonths:6,historyMonthLimits:{},historyDateEdit:false,deleteOneFor:null,toast:null,undo:null,editing:null,manageMode:false,selectedIds:[],manageOpenAreas:[],manageHiddenOpen:false,manageAdvancedOpen:false,confirmDelete:null,voucherListReturn:false,deferFor:null,deferCustom:false,rescheduleFor:null,followup:null,followupCustom:false,followupMode:null,addText:'',addDraft:[],categoryEditor:null,categoryColor:CATEGORY_COLORS[0],hiddenCategoriesOpen:false,categoryMenuFor:null,categorySelectMode:false,selectedCategories:[],categoryDeleteConfirm:null};
 let undoTimer=null;
 const DB_NAME='projectD-db-v1', DB_STORE='kv', DB_KEY='items';
 function openDB(){return new Promise((resolve,reject)=>{try{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{const db=r.result;if(!db.objectStoreNames.contains(DB_STORE))db.createObjectStore(DB_STORE)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)}catch(e){reject(e)}})}
@@ -607,7 +632,7 @@ function parseMany(text){
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.17</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.18</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -726,12 +751,89 @@ function hiddenAreaRow(a){
   const builtin=isBuiltinArea(a),count=categoryRecordCount(a);
   return `<div class="hiddenCategoryRow"><div class="icon" style="width:34px;height:34px;font-size:18px">${esc(areaEmoji(a))}</div><div class="hiddenCategoryMain"><div class="hiddenCategoryName">${esc(areaLabel(a))}</div><div class="hiddenCategoryMeta">${builtin?'Výchozí kategorie':'Vlastní kategorie'} · ${count} ${count===1?'záznam':count>=2&&count<=4?'záznamy':'záznamů'}</div></div><div class="hiddenCategoryBtns"><button class="secondary" data-restore-area="${esc(a)}">Obnovit</button><button class="secondary" data-edit-hidden-area="${esc(a)}">Upravit</button>${builtin?'':`<button class="danger" data-delete-hidden-area="${esc(a)}">Smazat</button>`}</div></div>`;
 }
+function completedSortTime(x){return Date.parse(x.completedAt||x.created||'')||0}
+function isLegacyHistoryBridge(x){
+  if(x.status!=='done'||x.workflow!=='appointment'||x.appointmentStage!=='scheduled'||!x.parentId)return false;
+  const parent=state.items.find(i=>i.id===x.parentId);
+  // Ve starsi verzi prvni telefonat -> schuzka vytvoril mezikrok
+  // se stejnym datem a nazvem jako navsteva. Nikdy nemenime/nesmazeme data.
+  return !!(parent&&/zavolat|telefon|objednat/iu.test(`${parent.title||''} ${parent.raw||''}`)&&
+    parent.completedAt&&x.completedAt&&fmt(parent.completedAt)===fmt(x.completedAt)&&
+    x.due&&new Date(x.due).toDateString()!==new Date(x.completedAt).toDateString());
+}
+function categoryArchivedItems(area){
+  return state.items.filter(x=>x.status==='done'&&x.area===area&&!isLegacyHistoryBridge(x))
+    .sort((a,b)=>completedSortTime(b)-completedSortTime(a));
+}
+function historyActivityType(x){
+  if(x.kind!=='watch'&&x.kind!=='voucher')return null;
+  const t=normalizedText(`${x.topic||''} ${displayTitle(x)}`);
+  if(/strih|cesan/.test(t))return 'Stříhání';
+  if(/ockovan/.test(t))return 'Očkování';
+  if(/\bstk\b|technick.*kontrol/.test(t))return 'STK';
+  if(/servis|vymena oleje/.test(t))return 'Servis';
+  if(/revize/.test(t))return 'Revize';
+  if(/prohlidka|zubni kontrol/.test(t))return 'Prohlídka';
+  if(/poukaz/.test(t))return 'Poukaz';
+  return null;
+}
+function historyLatestGroups(archived){
+  const groups=new Map();
+  for(const x of archived){
+    const type=historyActivityType(x);if(!type)continue;
+    const key=`${normalizedText(x.entity||'')}/${type}/${normalizedText(x.topic||'')}`;
+    if(!groups.has(key))groups.set(key,{items:[],type});
+    groups.get(key).items.push(x);
+  }
+  return [...groups.values()].map(({items,type})=>{
+    // Skutečné potvrzené datum má přednost před dnem odškrtnutí.
+    const confirmed=items.filter(x=>x.actualDate).sort((a,b)=>Date.parse(b.actualDate)-Date.parse(a.actualDate));
+    return {x:confirmed[0]||items[0],type};
+  }).sort((a,b)=>Date.parse(b.x.actualDate||b.x.completedAt||0)-Date.parse(a.x.actualDate||a.x.completedAt||0)).slice(0,3);
+}
+function historyItemHtml(x){
+  const completed=x.completedAt?'Označeno hotovo '+fmt(x.completedAt):'Dokončené';
+  const due=x.due?' · plánovaný termín '+fmt(x.due):'';
+  const actual=x.actualDate?' · skutečně '+fmt(x.actualDate):'';
+  return `<button type="button" class="historyArchiveItem" data-archived-id="${esc(x.id)}"><span>✓</span><span class="main"><strong>${esc(displayTitle(x))}</strong><small>${esc(completed+due+actual)}</small></span><span aria-hidden="true">›</span></button>`;
+}
+function historyMonthKey(x){
+  const d=new Date(x.completedAt||x.created||Date.now());
+  return Number.isFinite(d.getTime())?`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`:'Neurčeno';
+}
+function historyMonthName(key){
+  if(key==='Neurčeno')return 'Bez data';
+  const [y,m]=key.split('-').map(Number);
+  return new Intl.DateTimeFormat('cs-CZ',{month:'long',year:'numeric'}).format(new Date(y,m-1,1));
+}
+function historyBodyHtml(archived){
+  const q=normalizedText(state.categoryHistoryQuery.trim());
+  if(q){
+    const matches=archived.filter(x=>normalizedText([displayTitle(x),x.raw||'',x.entity||'',x.topic||'',x.kind||''].join(' ')).includes(q));
+    const limited=matches.slice(0,state.categoryHistoryLimit);
+    return `<div class="historyPaneNote">Nalezeno ${matches.length} ${matches.length===1?'záznam':matches.length<5?'záznamy':'záznamů'}</div>${limited.length?limited.map(historyItemHtml).join(''):'<div class="historyPaneNote">Nic jsem nenašel. Zkus jiné slovo nebo jméno.</div>'}${matches.length>limited.length?`<button type="button" class="historyArchiveLink" data-history-more="1">Zobrazit dalších ${Math.min(25,matches.length-limited.length)} ↓</button>`:''}`;
+  }
+  const latest=historyLatestGroups(archived);
+  const known=latest.length?`<div class="historyRecentBlock"><h3>Naposledy zaznamenáno</h3>${latest.map(({x,type})=>`<div class="historyRecentItem"><div><strong>${esc(type)} · ${esc(x.entity||displayTitle(x))}</strong><small>${esc(x.actualDate?'Skutečný den '+fmt(x.actualDate):'Odškrtnuto '+(x.completedAt?fmt(x.completedAt):'bez data')+' · skutečný den nepotvrzen')}</small></div><button type="button" data-archived-id="${esc(x.id)}" aria-label="Podrobnosti ${esc(displayTitle(x))}">›</button></div>`).join('')}<div class="historyHint">Datum odškrtnutí nemusí být dnem stříhání, očkování ani jiné události.</div></div>`:'';
+  const newest=archived.slice(0,5);
+  let html=`${known}<div class="historyRecentBlock"><h3>Posledních ${newest.length} dokončení</h3>${newest.map(historyItemHtml).join('')}</div>`;
+  const older=archived.slice(5);
+  if(!older.length)return html;
+  html+=`<div class="historyArchiveToolbar"><button type="button" class="historyArchiveLink" data-history-old="1">${state.categoryHistoryShowOld?'Skrýt starší historii ↑':`Starší historie (${older.length}) ↓`}</button></div>`;
+  if(state.categoryHistoryShowOld){
+    const months=new Map();
+    older.forEach(x=>{const key=historyMonthKey(x);if(!months.has(key))months.set(key,[]);months.get(key).push(x)});
+    const list=[...months].slice(0,state.categoryHistoryMonths);
+    html+=list.map(([key,records])=>{const max=state.historyMonthLimits[key]||30;return `<details class="historyMonth"><summary>${esc(historyMonthName(key))} (${records.length})</summary><div>${records.slice(0,max).map(historyItemHtml).join('')}${records.length>max?`<button type="button" class="historyArchiveLink" data-history-month-more="${esc(key)}">Zobrazit další v měsíci (${records.length-max})</button>`:''}</div></details>`}).join('');
+    if(months.size>state.categoryHistoryMonths)html+=`<button type="button" class="historyArchiveLink" data-history-more-months="1">Další měsíce (${months.size-state.categoryHistoryMonths}) ↓</button>`;
+  }
+  return html;
+}
 function categoryView(area){
   const active=state.items.filter(x=>x.status==='active'&&x.area===area);
-  const archived=state.items.filter(x=>x.status==='done'&&x.area===area)
-    .sort((a,b)=>new Date(b.completedAt||b.created||0)-new Date(a.completedAt||a.created||0));
+  const archived=categoryArchivedItems(area);
   const label=areaLabel(area);
-  const archivedSection=archived.length?`<div class="categoryArchive"><button type="button" id="categoryArchiveToggle" class="categoryArchiveToggle" aria-expanded="${state.categoryHistoryOpen?'true':'false'}"><span>↺ Historie dokončených (${archived.length})</span><span>${state.categoryHistoryOpen?'⌃':'⌄'}</span></button>${state.categoryHistoryOpen?`<div class="categoryArchiveRows">${archived.map(x=>`<button type="button" class="categoryArchiveItem" data-archived-id="${esc(x.id)}"><span class="categoryArchiveCheck">✓</span><span class="categoryArchiveMain"><strong>${esc(displayTitle(x))}</strong><small>${esc(x.completedAt?'Dokončeno '+fmt(x.completedAt):'Dokončeno')} · ${esc(x.due?'termín '+fmt(x.due):'bez termínu')}</small></span><span aria-hidden="true">›</span></button>`).join('')}</div>`:''}</div>`:'';
+  const archivedSection=archived.length?`<div class="categoryArchive"><button type="button" id="categoryArchiveToggle" class="categoryArchiveToggle" aria-expanded="${state.categoryHistoryOpen?'true':'false'}"><span>↺ Historie (${archived.length})</span><span>${state.categoryHistoryOpen?'⌃':'⌄'}</span></button>${state.categoryHistoryOpen?`<section class="historyPane" id="categoryHistoryPane"><label for="categoryHistorySearch" style="font-size:13px;font-weight:750;color:#536679">Najít v historii</label><input id="categoryHistorySearch" class="historyFind" type="search" autocomplete="off" placeholder="Např. Andy, stříhání, STK…" value="${esc(state.categoryHistoryQuery)}"><div id="categoryHistoryDynamic">${historyBodyHtml(archived)}</div></section>`:''}</div>`:'';
   return `${header()}<button type="button" class="secondary" id="backThings">← Zpět</button><h1 class="title" style="margin-top:18px">${esc(label)}</h1>${active.length?`<div class="card">${active.map(x=>itemHtml(x)).join('')}</div>`:`<div class="empty">Žádné aktivní věci.</div>`}${archivedSection}`;
 }
 function things(){
@@ -1141,7 +1243,7 @@ function historyDisplayChain(x){
   // Legacy v0.4.16 could produce an already completed intermediary with the
   // same appointment as its still-active child. Preserve stored data but do
   // not present that as a separate, apparently completed veterinary visit.
-  return chain.filter(i=>!(i.status==='done'&&i.workflow==='appointment'&&i.appointmentStage==='scheduled'&&
+  return chain.filter(i=>!isLegacyHistoryBridge(i)&&!(i.status==='done'&&i.workflow==='appointment'&&i.appointmentStage==='scheduled'&&
     chain.some(j=>j.parentId===i.id&&j.status==='active'&&j.due===i.due&&displayTitle(j)===displayTitle(i))));
 }
 function historyHtml(x){
@@ -1154,11 +1256,15 @@ function historyHtml(x){
   return `<button class="historySummary" data-history="${x.id}"><strong>Poslední návaznost</strong><span class="historyLast">${esc(e.title)}${e.meta?' · '+esc(e.meta):''}</span><span class="historyMore"><span>Zobrazit celou historii (${chain.length})</span><span>›</span></span></button>`;
 }
 function historyModal(){
-  const x=state.items.find(i=>i.id===state.historyFor);if(!x){state.historyFor=null;return''}
+  const x=state.items.find(i=>i.id===state.historyFor);if(!x){state.historyFor=null;state.historyDateEdit=false;return''}
+  if(state.historyDateEdit){
+    const v=x.actualDate?dateInputValue(x.actualDate):'';
+    return `<div class="modal" id="modal"><div class="sheet"><h2>Skutečný den události</h2><div class="meta">${esc(displayTitle(x))}</div><p class="historyPaneNote">Vyplň pouze tehdy, když víš, kdy se věc opravdu uskutečnila. Termín úkolu ani den odškrtnutí tím nezměníš.</p><div class="editForm"><label>Skutečné datum<input type="date" id="historyActualDate" value="${esc(v)}"></label></div><div class="sheetActions"><button id="cancelHistoryDate">Zpět</button><button id="saveHistoryDate" class="green">Uložit datum</button>${x.actualDate?'<button id="clearHistoryDate" class="secondary" style="grid-column:1/3">Odebrat skutečné datum</button>':''}</div></div></div>`;
+  }
   const chain=historyDisplayChain(x);
-  return `<div class="modal" id="modal"><div class="sheet"><h2>Historie návazností</h2><div class="meta">${esc(displayTitle(x))} · ${chain.length} ${chain.length===1?'krok':chain.length>=2&&chain.length<=4?'kroky':'kroků'}</div><div class="historyTimeline">${chain.map(i=>{const e=historyEvent(i);return `<div class="historyEvent ${i.id===x.id?'current':''}"><div class="historyEventTitle">${esc(e.title)}</div>${e.meta?`<div class="historyEventMeta">${esc(e.meta)}</div>`:''}</div>`}).join('')}</div><div class="sheetActions" style="grid-template-columns:1fr"><button id="closeHistory">Zavřít</button></div></div></div>`;
+  const actualControl=x.status==='done'&&historyActivityType(x)?`<div class="historyActualRow"><strong>${x.actualDate?'Skutečně proběhlo '+esc(fmt(x.actualDate)):'Skutečné datum zatím neznáme'}</strong><div class="historyHint">Datum dokončení v aplikaci nemusí být dnem události.</div><button type="button" id="historySetActualDate">${x.actualDate?'Změnit skutečné datum':'Doplnit skutečné datum'}</button></div>`:'';
+  return `<div class="modal" id="modal"><div class="sheet"><h2>Historie návazností</h2><div class="meta">${esc(displayTitle(x))} · ${chain.length} ${chain.length===1?'krok':chain.length>=2&&chain.length<=4?'kroky':'kroků'}</div><div class="historyTimeline">${chain.map(i=>{const e=historyEvent(i);return `<div class="historyEvent ${i.id===x.id?'current':''}"><div class="historyEventTitle">${esc(e.title)}</div>${e.meta?`<div class="historyEventMeta">${esc(e.meta)}${i.actualDate?' · skutečně '+esc(fmt(i.actualDate)):''}</div>`:''}</div>`}).join('')}</div>${actualControl}<div class="sheetActions" style="grid-template-columns:1fr"><button id="closeHistory">Zavřít</button></div></div></div>`;
 }
-
 function categoryRecordCount(area){return state.items.filter(i=>i.area===area).length}
 function categoryMenuModal(){
   const area=state.categoryMenuFor;if(!area)return'';
@@ -1360,17 +1466,30 @@ function openCategoryEditor(area){
     render();
   }
 }
-function bind(){$$('[data-tab]').forEach(b=>b.onclick=()=>{if(b.dataset.tab!=='add')haltVoiceOnNavigation();state.tab=b.dataset.tab;state.detail=null;state.voucherListReturn=false;state.historyFor=null;state.openArea=null;state.categoryHistoryOpen=false;state.deleteOneFor=null;state.editing=null;state.manageMode=false;state.selectedIds=[];state.manageOpenAreas=[];state.manageHiddenOpen=false;state.manageAdvancedOpen=false;state.confirmDelete=null;state.deferFor=null;state.deferCustom=false;state.rescheduleFor=null;state.followup=null;state.followupCustom=false;state.followupMode=null;state.hiddenCategoriesOpen=false;state.categoryMenuFor=null;state.categorySelectMode=false;state.selectedCategories=[];state.categoryDeleteConfirm=null;render()});$$('[data-id]').forEach(e=>e.onclick=()=>{state.detail=e.dataset.id;state.voucherListReturn=false;render()});
+function bind(){$$('[data-tab]').forEach(b=>b.onclick=()=>{if(b.dataset.tab!=='add')haltVoiceOnNavigation();state.tab=b.dataset.tab;state.detail=null;state.voucherListReturn=false;state.historyFor=null;state.openArea=null;state.categoryHistoryOpen=false;state.categoryHistoryQuery='';state.categoryHistoryLimit=25;state.categoryHistoryShowOld=false;state.categoryHistoryMonths=6;state.historyMonthLimits={};state.historyDateEdit=false;state.deleteOneFor=null;state.editing=null;state.manageMode=false;state.selectedIds=[];state.manageOpenAreas=[];state.manageHiddenOpen=false;state.manageAdvancedOpen=false;state.confirmDelete=null;state.deferFor=null;state.deferCustom=false;state.rescheduleFor=null;state.followup=null;state.followupCustom=false;state.followupMode=null;state.hiddenCategoriesOpen=false;state.categoryMenuFor=null;state.categorySelectMode=false;state.selectedCategories=[];state.categoryDeleteConfirm=null;render()});$$('[data-id]').forEach(e=>e.onclick=()=>{state.detail=e.dataset.id;state.voucherListReturn=false;render()});
 $$('[data-area]').forEach(el=>el.onclick=e=>{
   if(e.target.closest('[data-category-menu]')||Date.now()<categoryDragIgnoreClicksUntil)return;
-  const a=el.dataset.area;state.openArea=a;state.categoryHistoryOpen=false;render();
+  const a=el.dataset.area;state.openArea=a;state.categoryHistoryOpen=false;state.categoryHistoryQuery='';state.categoryHistoryLimit=25;state.categoryHistoryShowOld=false;state.categoryHistoryMonths=6;state.historyMonthLimits={};render();
 });
 $$('[data-category-menu]').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();state.categoryMenuFor=b.dataset.categoryMenu;render()});
 $$('[data-select-category]').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();const a=b.dataset.selectCategory;state.selectedCategories=state.selectedCategories.includes(a)?state.selectedCategories.filter(x=>x!==a):[...state.selectedCategories,a];render()});
 $$('[data-select-category-card]').forEach(el=>el.onclick=e=>{if(e.target.closest('[data-select-category]'))return;const a=el.dataset.selectCategoryCard;state.selectedCategories=state.selectedCategories.includes(a)?state.selectedCategories.filter(x=>x!==a):[...state.selectedCategories,a];render()});
-const backThings=$('#backThings');if(backThings)backThings.onclick=()=>{state.openArea=null;state.categoryHistoryOpen=false;render()};
+const backThings=$('#backThings');if(backThings)backThings.onclick=()=>{state.openArea=null;state.categoryHistoryOpen=false;state.categoryHistoryQuery='';render()};
 const categoryArchiveToggle=$('#categoryArchiveToggle');if(categoryArchiveToggle)categoryArchiveToggle.onclick=()=>{state.categoryHistoryOpen=!state.categoryHistoryOpen;render()};
-$$('[data-archived-id]').forEach(b=>b.onclick=()=>{state.historyFor=b.dataset.archivedId;render()});
+const historyPane=$('#categoryHistoryPane');if(historyPane){
+ const input=$('#categoryHistorySearch');
+ if(input)input.oninput=()=>{state.categoryHistoryQuery=input.value;state.categoryHistoryLimit=25;const target=$('#categoryHistoryDynamic');if(target)target.innerHTML=historyBodyHtml(categoryArchivedItems(state.openArea));};
+ historyPane.onclick=e=>{
+   const target=e.target.closest('[data-archived-id],[data-history-more],[data-history-old],[data-history-more-months],[data-history-month-more]');
+   if(!target)return;
+   if(target.dataset.archivedId){state.historyFor=target.dataset.archivedId;state.historyDateEdit=false;render();return}
+   if(target.dataset.historyMore){state.categoryHistoryLimit+=25;render();return}
+   if(target.dataset.historyOld){state.categoryHistoryShowOld=!state.categoryHistoryShowOld;render();return}
+   if(target.dataset.historyMoreMonths){state.categoryHistoryMonths+=6;render();return}
+   if(target.dataset.historyMonthMore){const key=target.dataset.historyMonthMore;state.historyMonthLimits[key]=(state.historyMonthLimits[key]||30)+30;const opened=[...historyPane.querySelectorAll('details.historyMonth[open] summary')].map(el=>el.textContent);render();$$('details.historyMonth').forEach(d=>{if(opened.includes(d.querySelector('summary')?.textContent))d.open=true});return}
+ };
+}
+
 const selectAllCategories=$('#selectAllCategories');if(selectAllCategories)selectAllCategories.onclick=()=>{const areas=allAreas();state.selectedCategories=state.selectedCategories.length===areas.length?[]:[...areas];render()};
 const cancelCategorySelect=$('#cancelCategorySelect');if(cancelCategorySelect)cancelCategorySelect.onclick=()=>{state.categorySelectMode=false;state.selectedCategories=[];render()};
 const deleteSelectedCategories=$('#deleteSelectedCategories');if(deleteSelectedCategories)deleteSelectedCategories.onclick=()=>{const areas=[...state.selectedCategories];if(!areas.length)return;const blocked=areas.filter(a=>categoryRecordCount(a)>0);if(blocked.length)return toast(`${blocked.length===1?`Kategorie ${areaLabel(blocked[0])} obsahuje záznamy.`:`${blocked.length} vybraných kategorií obsahuje záznamy.`} Nejdřív je přesuň nebo smaž.`);state.categoryDeleteConfirm={areas};render()};
@@ -1381,7 +1500,11 @@ const categoryMenuCancel=$('#categoryMenuCancel');if(categoryMenuCancel)category
 const cancelCategoryDelete=$('#cancelCategoryDelete');if(cancelCategoryDelete)cancelCategoryDelete.onclick=()=>{state.categoryDeleteConfirm=null;render()};
 const confirmCategoryDelete=$('#confirmCategoryDelete');if(confirmCategoryDelete)confirmCategoryDelete.onclick=()=>{const areas=state.categoryDeleteConfirm?.areas||[];areas.forEach(removeCategoryDefinition);savePersonalization();state.categoryDeleteConfirm=null;state.categoryMenuFor=null;state.categorySelectMode=false;state.selectedCategories=[];render();toast(areas.length===1?'Kategorie je smazaná.':'Kategorie jsou smazané.');};
 $$('[data-history]').forEach(b=>b.onclick=e=>{e.stopPropagation();state.historyFor=b.dataset.history;render()});
-const closeHistory=$('#closeHistory');if(closeHistory)closeHistory.onclick=()=>{state.historyFor=null;render()};
+const closeHistory=$('#closeHistory');if(closeHistory)closeHistory.onclick=()=>{state.historyFor=null;state.historyDateEdit=false;render()};
+const historySetActualDate=$('#historySetActualDate');if(historySetActualDate)historySetActualDate.onclick=()=>{state.historyDateEdit=true;render()};
+const cancelHistoryDate=$('#cancelHistoryDate');if(cancelHistoryDate)cancelHistoryDate.onclick=()=>{state.historyDateEdit=false;render()};
+const saveHistoryDate=$('#saveHistoryDate');if(saveHistoryDate)saveHistoryDate.onclick=()=>{const x=state.items.find(i=>i.id===state.historyFor);const v=$('#historyActualDate')?.value;if(!x||!v)return toast('Vyber skutečné datum.');x.actualDate=dateFromInput(v);save();state.historyDateEdit=false;render();toast('Skutečné datum je uložené.');};
+const clearHistoryDate=$('#clearHistoryDate');if(clearHistoryDate)clearHistoryDate.onclick=()=>{const x=state.items.find(i=>i.id===state.historyFor);if(x){delete x.actualDate;save()}state.historyDateEdit=false;render();toast('Datum odebrané.');};
 const newCategory=$('#newCategory');if(newCategory)newCategory.onclick=()=>{state.categoryEditor={mode:'custom',name:'',emoji:'',keywords:[],color:CATEGORY_COLORS[0],originalName:null,assignToDraftIndex:null};state.categoryColor=CATEGORY_COLORS[0];render()};
 const hiddenCategories=$('#hiddenCategories');if(hiddenCategories)hiddenCategories.onclick=()=>{state.hiddenCategoriesOpen=!state.hiddenCategoriesOpen;render()};
 $$('[data-restore-area]').forEach(b=>b.onclick=e=>{e.stopPropagation();const key=b.dataset.restoreArea;if(isBuiltinArea(key)){builtinSettings[key]={...(builtinSettings[key]||{}),hidden:false}}else{const c=customAreaByName(key);if(c)c.hidden=false}savePersonalization();render();toast(`${areaLabel(key)} je zpět v přehledu.`)});
@@ -1419,7 +1542,7 @@ const voiceKeyboardHelp=$('#voiceKeyboardHelp');if(voiceKeyboardHelp)voiceKeyboa
 const ta=$('#newText');if(ta){ta.oninput=()=>{if(voiceInput.active||voiceInput.starting)haltVoiceOnNavigation();updateAddDraftFromInput(ta.value)};bindPreviewDraft()}
 const saveB=$('#saveItem');if(saveB)saveB.onclick=()=>{if(voiceInput.active||voiceInput.starting)haltVoiceOnNavigation();const t=state.addText.trim();if(!t)return toast('Napiš nejdřív jednu nebo více věcí.');const xs=state.addDraft.length?state.addDraft:parseMany(t);if(!xs.length)return toast('Nenašel jsem nic k uložení.');xs.forEach(x=>{learnAreaChoice(x.raw||x.title,x.area,x._originalArea);rememberPeople(x.raw||x.title,x.area,x.area!==x._originalArea);delete x._originalArea});state.items.unshift(...xs);save();state.addText='';state.addDraft=[];state.tab='today';toast(xs.length===1?'Mám to.':'Mám '+xs.length+' věcí.');}
 const search=$('#search');if(search)search.oninput=()=>{const q=search.value.toLowerCase();$$('#list .item').forEach(el=>el.style.display=el.textContent.toLowerCase().includes(q)?'flex':'none')};
-const modalEl=$('#modal');if(modalEl)modalEl.onclick=e=>{if(e.target!==modalEl)return;if(state.categoryDeleteConfirm){state.categoryDeleteConfirm=null;render();return}if(state.categoryMenuFor){state.categoryMenuFor=null;render();return}if(state.categoryEditor){state.categoryEditor=null;render();return}if(state.historyFor){state.historyFor=null;render();return}if(!state.followup&&!state.deferFor&&!state.rescheduleFor){state.detail=null;state.voucherListReturn=false;state.editing=null;state.confirmDelete=null;render()}};
+const modalEl=$('#modal');if(modalEl)modalEl.onclick=e=>{if(e.target!==modalEl)return;if(state.categoryDeleteConfirm){state.categoryDeleteConfirm=null;render();return}if(state.categoryMenuFor){state.categoryMenuFor=null;render();return}if(state.categoryEditor){state.categoryEditor=null;render();return}if(state.historyFor){if(state.historyDateEdit)state.historyDateEdit=false;else state.historyFor=null;render();return}if(!state.followup&&!state.deferFor&&!state.rescheduleFor){state.detail=null;state.voucherListReturn=false;state.editing=null;state.confirmDelete=null;render()}};
 const closeShopping=$('#closeShopping');if(closeShopping)closeShopping.onclick=()=>{state.detail=null;state.editing=null;render()};
 const cancelEdit=$('#cancelEdit');if(cancelEdit)cancelEdit.onclick=()=>{state.editing=null;render()};
 const saveEdit=$('#saveEdit');if(saveEdit)saveEdit.onclick=()=>{const x=state.items.find(i=>i.id===state.detail);if(!x)return;const previousArea=x.area;const title=$('#editTitle').value.trim();if(!title)return toast('Název nemůže být prázdný.');const kind=$('#editKind').value,area=$('#editArea').value,entity=$('#editEntity').value.trim()||null,topic=$('#editTopic').value.trim()||null,date=dateFromInput($('#editDate').value),val=parseInt($('#editValue').value||'0',10)||null;x.manualTitle=title;x.title=title;x.kind=kind;x.daypart=$('#editDaypart').value||null;x.area=area;x.entity=entity;x.topic=topic;x.icon=iconFor(kind,area);x.due=null;x.since=null;x.expires=null;x.periodLabel=null;x.snoozedUntil=null;x.value=kind==='voucher'?val:null;if(kind==='shopping'){x.attention=null}else if(kind==='waiting'){x.since=date||new Date().toISOString();x.attention=new Date(new Date(x.since).getTime()+5*dayMs).toISOString()}else if(kind==='voucher'){x.expires=date;x.attention=date?new Date(new Date(date).getTime()-30*dayMs).toISOString():null}else{x.due=date;x.attention=date||(kind==='todo'?new Date().toISOString():null)}if(area!==previousArea)learnAreaChoice(x.raw||title,area,previousArea);rememberPeople(x.raw||title,area,area!==previousArea);save();state.editing=null;toast('Uloženo.');};
@@ -1559,7 +1682,7 @@ function bindPreviewDraft(){
   $$('[data-preview-daypart]').forEach(el=>el.onchange=()=>{const x=state.addDraft[+el.dataset.previewDaypart];if(x)x.daypart=el.value||null});
 }
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.4.17';
+const APP_VERSION='0.4.18';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
