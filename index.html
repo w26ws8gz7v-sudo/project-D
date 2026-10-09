@@ -171,7 +171,7 @@ function parseMany(text){return splitInput(text).map(parse)}
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.3.4</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.3.5</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -182,13 +182,13 @@ function dateFromInput(v){if(!v)return null;const [y,m,d]=v.split('-').map(Numbe
 function iconFor(kind,area){if(kind==='shopping')return'🛒';if(kind==='waiting')return'⏳';if(kind==='voucher')return'🎁';if(area==='Ben')return'🐾';if(area==='Zdraví')return'🦷';if(area==='Zahrada')return'🌿';if(area==='Auto')return'🚗';if(area==='Smlouvy')return'📄';if(area==='Práce')return'💼';if(area==='Dům')return'🏠';if(area==='Finance')return'💰';if(area==='Rodina')return'👨‍👩‍👧';if(area==='Já')return'👤';return kind==='watch'?'👁️':'📝'}
 function shortDate(d){const x=new Date(d);return `${x.getDate()}. ${x.getMonth()+1}.`}
 function areaPath(x){return x.entity&&x.entity!==x.area?`${x.area} → ${x.entity}`:x.area}
-function itemMeta(x){const path=areaPath(x);
+function itemMeta(x){const path=areaPath(x);const snooze=x.snoozedUntil?` · připomenu ${shortDate(x.snoozedUntil)}`:'';
   if(x.kind==='shopping')return `Nákup · ${path}`;
-  if(x.kind==='waiting'&&x.since)return `Čekám ${Math.max(0,daysBetween(new Date(),x.since))} dní · ${path}${x.due?' · do '+shortDate(x.due):''}`;
-  if(x.kind==='voucher'&&x.expires)return `Poukaz · do ${shortDate(x.expires)}${x.value?' · '+x.value.toLocaleString('cs-CZ')+' Kč':''}`;
-  if(x.kind==='watch')return `Hlídám · ${path}${x.due?' · '+shortDate(x.due):x.periodLabel?' · '+x.periodLabel:''}`;
-  if(x.kind==='todo')return `Úkol · ${path}${x.due?' · '+shortDate(x.due):x.periodLabel?' · '+x.periodLabel:''}`;
-  return path;
+  if(x.kind==='waiting'&&x.since)return `Čekám ${Math.max(0,daysBetween(new Date(),x.since))} dní · ${path}${snooze||(x.due?' · do '+shortDate(x.due):'')}`;
+  if(x.kind==='voucher'&&x.expires)return `Poukaz · do ${shortDate(x.expires)}${x.value?' · '+x.value.toLocaleString('cs-CZ')+' Kč':''}${snooze}`;
+  if(x.kind==='watch')return `Hlídám · ${path}${snooze||(x.due?' · '+shortDate(x.due):x.periodLabel?' · '+x.periodLabel:'')}`;
+  if(x.kind==='todo')return `Úkol · ${path}${snooze||(x.due?' · '+shortDate(x.due):x.periodLabel?' · '+x.periodLabel:'')}`;
+  return path+snooze;
 }
 function itemHtml(x,klass=''){return `<div class="item ${klass}" data-id="${x.id}"><div class="icon">${x.icon||'•'}</div><div class="itemMain"><div class="itemTitle">${esc(displayTitle(x))}</div><div class="itemMeta">${esc(itemMeta(x))}</div></div><div class="right">›</div></div>`}
 function shoppingItemHtml(x){return `<div class="item shoppingItem"><button class="shopCheck" data-shop-done="${x.id}" aria-label="Označit ${esc(displayTitle(x))} jako koupené"><span class="shopCircle">✓</span></button><div class="shopOpen" data-shop-open="${x.id}"><div class="itemMain"><div class="itemTitle">${esc(displayTitle(x))}</div><div class="itemMeta">${esc(itemMeta(x))}</div></div><div class="right">›</div></div></div>`}
@@ -319,20 +319,36 @@ function createFollowup(x,date,opts={}){
   save();
   return item;
 }
+function startUndo(x,label,pendingFollowup=null){
+  state.undo={type:'completion',id:x.id,title:displayTitle(x),label:label||'Hotovo',previousCompletedAt:x._undoPreviousCompletedAt||null,pendingFollowup};
+  delete x._undoPreviousCompletedAt;
+  if(undoTimer)clearTimeout(undoTimer);
+  render();
+  undoTimer=setTimeout(()=>{
+    const u=state.undo;
+    if(!u||u.id!==x.id)return;
+    state.undo=null;
+    if(u.pendingFollowup){state.followup={sourceId:x.id,...u.pendingFollowup};state.followupCustom=false;render()}
+    else render();
+  },5000);
+}
 function completeItem(x){
   const profile=actionProfile(x);
-  x.status='done';x.completedAt=new Date().toISOString();save();
   const fp=followupProfile(x);
-  state.detail=null;state.editing=null;
-  if(fp){state.followup={sourceId:x.id,type:fp.type,title:fp.title,text:fp.text};state.followupCustom=false;render()}
-  else toast(profile.primary||'Hotovo.');
+  x._undoPreviousCompletedAt=x.completedAt||null;
+  x.status='done';x.completedAt=new Date().toISOString();save();
+  state.detail=null;state.editing=null;state.followup=null;state.followupCustom=false;
+  startUndo(x,profile.primary||'Hotovo',fp?{type:fp.type,title:fp.title,text:fp.text}:null);
 }
-function postponeItem(x,days){
-  x.attention=addDaysFrom(today0(),days).toISOString();save();
-  state.deferFor=null;state.deferCustom=false;state.detail=null;toast('Dobře, vrátím ti to později.');
+function postponeToDate(x,date){
+  const iso=new Date(date).toISOString();
+  x.attention=iso;x.snoozedUntil=iso;save();
+  state.deferFor=null;state.deferCustom=false;state.detail=null;
+  toast(`Připomenu ${fmt(iso)}.`);
 }
+function postponeItem(x,days){postponeToDate(x,addDaysFrom(today0(),days))}
 function rescheduleItem(x,date){
-  const iso=new Date(date).toISOString();x.due=iso;x.periodLabel=null;
+  const iso=new Date(date).toISOString();x.due=iso;x.periodLabel=null;x.snoozedUntil=null;
   if(x.area==='Zdraví'||x.area==='Auto'||x.area==='Smlouvy')x.attention=addMonthsFrom(iso,-1).toISOString();
   else x.attention=iso;
   save();state.rescheduleFor=null;state.detail=null;toast('Termín upraven.');
@@ -357,7 +373,7 @@ function followupModal(){
 function deferModal(){
   if(!state.deferFor)return'';
   const x=state.items.find(i=>i.id===state.deferFor);if(!x){state.deferFor=null;return''}
-  if(state.deferCustom)return `<div class="modal" id="modal"><div class="sheet"><h2>Kdy připomenout?</h2><div class="dateChoice"><input type="date" id="deferDate"><button class="green" id="saveDeferDate">Uložit datum</button><button class="secondary" id="cancelDeferDate">Zpět</button></div></div></div>`;
+  if(state.deferCustom)return `<div class="modal" id="modal"><div class="sheet"><h2>Kdy připomenout?</h2><div class="dateChoice"><input type="date" id="deferDate" value="${dateInputValue(x.snoozedUntil||x.attention)}"><button class="green" id="saveDeferDate">Uložit datum</button><button class="secondary" id="cancelDeferDate">Zpět</button></div></div></div>`;
   const waiting=x.kind==='waiting';
   return `<div class="modal" id="modal"><div class="sheet"><h2>${waiting?'Kdy zkontrolovat znovu?':'Kdy ti to mám připomenout?'}</h2><div class="choiceGrid"><button data-defer-days="1">Zítra</button>${waiting?'<button data-defer-days="3">Za 3 dny</button>':''}<button data-defer-days="7">Za týden</button><button data-defer-days="30">Za měsíc</button><button data-defer-custom="1" class="full">Vybrat datum</button><button data-defer-cancel="1" class="full">Zrušit</button></div></div></div>`;
 }
@@ -391,8 +407,8 @@ function modal(){
     actions=`${ap.secondary?`<button id="secondaryAction">${esc(ap.secondary)}</button>`:''}${ap.primary?`<button id="completeAction" class="green">${esc(ap.primary)}</button>`:''}`;
   }
   const source=x.raw&&x.raw!==displayTitle(x)?`<div class="row"><span>Původní zadání</span><b style="text-align:right;max-width:65%">${esc(x.raw)}</b></div>`:'';
-  return `<div class="modal" id="modal"><div class="sheet"><h2>${x.icon||''} ${esc(displayTitle(x))}</h2><div class="meta">${esc(itemMeta(x))}</div>${x.due?`<div class="row"><span>Termín</span><b>${fmt(x.due)}</b></div>`:''}${x.periodLabel?`<div class="row"><span>Období</span><b>${esc(x.periodLabel)}</b></div>`:''}${x.expires?`<div class="row"><span>Platnost</span><b>${fmt(x.expires)}</b></div>`:''}${x.value?`<div class="row"><span>Hodnota</span><b>${x.value.toLocaleString('cs-CZ')} Kč</b></div>`:''}${x.since?`<div class="row"><span>Čekám od</span><b>${fmt(x.since)}</b></div>`:''}${x.parentId?`<div class="row"><span>Návaznost</span><b>Navazuje na předchozí dokončení</b></div>`:''}${source}<div class="sheetActions">${actions}<button id="editItem" class="secondary" style="grid-column:1/3">Upravit</button><button id="delete" class="danger" style="grid-column:1/3">Smazat</button></div></div></div>`}
-function render(){let content='';if(state.tab==='today')content=today();if(state.tab==='add')content=add();if(state.tab==='watch')content=listTab('watch','Hlídám','Dlouhodobé věci přehledně na jednom místě.');if(state.tab==='waiting')content=listTab('waiting','Čekám na','Otevřené věci, které nemusíš držet v hlavě.');if(state.tab==='things')content=things();$('#app').innerHTML=`<main class="shell">${content}</main>${nav()}${state.manageMode?`<div class="manageBar"><button class="secondary" id="cancelManage">Zrušit</button><button class="deleteSelected" id="deleteSelected" ${state.selectedIds.length?'':'disabled'}>Smazat vybrané (${state.selectedIds.length})</button></div>`:''}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}${state.undo?`<div class="undoToast"><span>${esc(state.undo.title)} · koupeno</span><button id="undoShopping">Vrátit</button></div>`:''}${modal()}`;bind()}
+  return `<div class="modal" id="modal"><div class="sheet"><h2>${x.icon||''} ${esc(displayTitle(x))}</h2><div class="meta">${esc(itemMeta(x))}</div>${x.due?`<div class="row"><span>Termín</span><b>${fmt(x.due)}</b></div>`:''}${x.periodLabel?`<div class="row"><span>Období</span><b>${esc(x.periodLabel)}</b></div>`:''}${x.expires?`<div class="row"><span>Platnost</span><b>${fmt(x.expires)}</b></div>`:''}${x.value?`<div class="row"><span>Hodnota</span><b>${x.value.toLocaleString('cs-CZ')} Kč</b></div>`:''}${x.since?`<div class="row"><span>Čekám od</span><b>${fmt(x.since)}</b></div>`:''}${x.snoozedUntil?`<div class="row"><span>Připomenu</span><b>${fmt(x.snoozedUntil)}</b></div>`:''}${x.parentId?`<div class="row"><span>Návaznost</span><b>Navazuje na předchozí dokončení</b></div>`:''}${source}<div class="sheetActions">${actions}<button id="editItem" class="secondary" style="grid-column:1/3">Upravit</button><button id="delete" class="danger" style="grid-column:1/3">Smazat</button></div></div></div>`}
+function render(){let content='';if(state.tab==='today')content=today();if(state.tab==='add')content=add();if(state.tab==='watch')content=listTab('watch','Hlídám','Dlouhodobé věci přehledně na jednom místě.');if(state.tab==='waiting')content=listTab('waiting','Čekám na','Otevřené věci, které nemusíš držet v hlavě.');if(state.tab==='things')content=things();$('#app').innerHTML=`<main class="shell">${content}</main>${nav()}${state.manageMode?`<div class="manageBar"><button class="secondary" id="cancelManage">Zrušit</button><button class="deleteSelected" id="deleteSelected" ${state.selectedIds.length?'':'disabled'}>Smazat vybrané (${state.selectedIds.length})</button></div>`:''}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}${state.undo?`<div class="undoToast"><span>${esc(state.undo.title)} · ${esc(state.undo.label||'Hotovo')}</span><button id="undoAction">Vrátit</button></div>`:''}${modal()}`;bind()}
 function bind(){$$('[data-tab]').forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;state.detail=null;state.editing=null;state.manageMode=false;state.selectedIds=[];state.confirmDelete=null;state.deferFor=null;state.deferCustom=false;state.rescheduleFor=null;state.followup=null;state.followupCustom=false;render()});$$('[data-id]').forEach(e=>e.onclick=()=>{state.detail=e.dataset.id;render()});$$('[data-area]').forEach(e=>e.onclick=()=>{const a=e.dataset.area;const arr=state.items.filter(x=>x.status==='active'&&x.area===a);$('.shell').innerHTML=`${header()}<button class="secondary" id="backThings">← Zpět</button><h1 class="title" style="margin-top:18px">${a}</h1>${arr.length?`<div class="card">${arr.map(x=>itemHtml(x)).join('')}</div>`:`<div class="empty">Zatím nic.</div>`}`;$('#backThings').onclick=()=>render();$$('[data-id]').forEach(i=>i.onclick=()=>{state.detail=i.dataset.id;render()})});
 const manageItems=$('#manageItems');if(manageItems)manageItems.onclick=()=>{state.manageMode=true;state.selectedIds=[];render()};
 const cancelManage=$('#cancelManage');if(cancelManage)cancelManage.onclick=()=>{state.manageMode=false;state.selectedIds=[];state.confirmDelete=null;render()};
@@ -410,12 +426,12 @@ const search=$('#search');if(search)search.oninput=()=>{const q=search.value.toL
 const modalEl=$('#modal');if(modalEl)modalEl.onclick=e=>{if(e.target===modalEl&&!state.followup&&!state.deferFor&&!state.rescheduleFor){state.detail=null;state.editing=null;state.confirmDelete=null;render()}};
 const closeShopping=$('#closeShopping');if(closeShopping)closeShopping.onclick=()=>{state.detail=null;state.editing=null;render()};
 const cancelEdit=$('#cancelEdit');if(cancelEdit)cancelEdit.onclick=()=>{state.editing=null;render()};
-const saveEdit=$('#saveEdit');if(saveEdit)saveEdit.onclick=()=>{const x=state.items.find(i=>i.id===state.detail);if(!x)return;const title=$('#editTitle').value.trim();if(!title)return toast('Název nemůže být prázdný.');const kind=$('#editKind').value,area=$('#editArea').value,entity=$('#editEntity').value.trim()||null,date=dateFromInput($('#editDate').value),val=parseInt($('#editValue').value||'0',10)||null;x.manualTitle=title;x.title=title;x.kind=kind;x.area=area;x.entity=entity;x.icon=iconFor(kind,area);x.due=null;x.since=null;x.expires=null;x.periodLabel=null;x.value=kind==='voucher'?val:null;if(kind==='shopping'){x.attention=null}else if(kind==='waiting'){x.since=date||new Date().toISOString();x.attention=new Date(new Date(x.since).getTime()+5*dayMs).toISOString()}else if(kind==='voucher'){x.expires=date;x.attention=date?new Date(new Date(date).getTime()-30*dayMs).toISOString():null}else{x.due=date;x.attention=date||(kind==='todo'?new Date().toISOString():null)}save();state.editing=null;toast('Uloženo.');};
+const saveEdit=$('#saveEdit');if(saveEdit)saveEdit.onclick=()=>{const x=state.items.find(i=>i.id===state.detail);if(!x)return;const title=$('#editTitle').value.trim();if(!title)return toast('Název nemůže být prázdný.');const kind=$('#editKind').value,area=$('#editArea').value,entity=$('#editEntity').value.trim()||null,date=dateFromInput($('#editDate').value),val=parseInt($('#editValue').value||'0',10)||null;x.manualTitle=title;x.title=title;x.kind=kind;x.area=area;x.entity=entity;x.icon=iconFor(kind,area);x.due=null;x.since=null;x.expires=null;x.periodLabel=null;x.snoozedUntil=null;x.value=kind==='voucher'?val:null;if(kind==='shopping'){x.attention=null}else if(kind==='waiting'){x.since=date||new Date().toISOString();x.attention=new Date(new Date(x.since).getTime()+5*dayMs).toISOString()}else if(kind==='voucher'){x.expires=date;x.attention=date?new Date(new Date(date).getTime()-30*dayMs).toISOString():null}else{x.due=date;x.attention=date||(kind==='todo'?new Date().toISOString():null)}save();state.editing=null;toast('Uloženo.');};
 const editItem=$('#editItem');if(editItem)editItem.onclick=()=>{state.editing=state.detail;render()};
-const finishShopping=id=>{const item=state.items.find(i=>i.id===id);if(!item)return;item.status='done';save();state.undo={id:item.id,title:displayTitle(item)};if(undoTimer)clearTimeout(undoTimer);const remaining=state.items.some(i=>i.status==='active'&&i.kind==='shopping');if(state.detail==='__shopping__'&&!remaining)state.detail=null;render();undoTimer=setTimeout(()=>{if(state.undo&&state.undo.id===id){state.undo=null;render()}},4500)};
+const finishShopping=id=>{const item=state.items.find(i=>i.id===id);if(!item)return;item.status='done';save();state.undo={type:'shopping',id:item.id,title:displayTitle(item),label:'Koupeno'};if(undoTimer)clearTimeout(undoTimer);const remaining=state.items.some(i=>i.status==='active'&&i.kind==='shopping');if(state.detail==='__shopping__'&&!remaining)state.detail=null;render();undoTimer=setTimeout(()=>{if(state.undo&&state.undo.id===id){state.undo=null;render()}},5000)};
 $$('[data-shop-done]').forEach(b=>b.onclick=e=>{e.stopPropagation();finishShopping(b.dataset.shopDone)});
 $$('[data-shop-open]').forEach(e=>e.onclick=()=>{state.detail=e.dataset.shopOpen;render()});
-const undoShopping=$('#undoShopping');if(undoShopping)undoShopping.onclick=()=>{const u=state.undo;if(!u)return;const item=state.items.find(i=>i.id===u.id);if(item){item.status='active';save()}state.undo=null;if(undoTimer)clearTimeout(undoTimer);render()};
+const undoAction=$('#undoAction');if(undoAction)undoAction.onclick=()=>{const u=state.undo;if(!u)return;const item=state.items.find(i=>i.id===u.id);if(item){item.status='active';if(u.type==='completion'){item.completedAt=u.previousCompletedAt||null;item.followupId=null}save()}state.undo=null;state.followup=null;state.followupCustom=false;if(undoTimer)clearTimeout(undoTimer);render()};
 if(state.detail==='__shopping__')return;
 const followSource=state.followup?state.items.find(i=>i.id===state.followup.sourceId):null;
 $$('[data-fu-months]').forEach(b=>b.onclick=()=>{if(!followSource)return;const date=addMonthsFrom(followupDueBase(followSource),+b.dataset.fuMonths);createFollowup(followSource,date);state.followup=null;state.followupCustom=false;toast('Navazující připomenutí je nastavené.');});
@@ -429,7 +445,7 @@ $$('[data-defer-days]').forEach(b=>b.onclick=()=>{const x=state.items.find(i=>i.
 const deferCustom=$('[data-defer-custom]');if(deferCustom)deferCustom.onclick=()=>{state.deferCustom=true;render()};
 const deferCancel=$('[data-defer-cancel]');if(deferCancel)deferCancel.onclick=()=>{state.deferFor=null;state.deferCustom=false;render()};
 const cancelDeferDate=$('#cancelDeferDate');if(cancelDeferDate)cancelDeferDate.onclick=()=>{state.deferCustom=false;render()};
-const saveDeferDate=$('#saveDeferDate');if(saveDeferDate)saveDeferDate.onclick=()=>{const x=state.items.find(i=>i.id===state.deferFor);const v=$('#deferDate').value;if(!x||!v)return toast('Vyber datum.');x.attention=dateFromInput(v);save();state.deferFor=null;state.deferCustom=false;state.detail=null;toast('Připomenutí posunuto.');};
+const saveDeferDate=$('#saveDeferDate');if(saveDeferDate)saveDeferDate.onclick=()=>{const x=state.items.find(i=>i.id===state.deferFor);const v=$('#deferDate').value;if(!x||!v)return toast('Vyber datum.');postponeToDate(x,dateFromInput(v));};
 const cancelRescheduleDate=$('#cancelRescheduleDate');if(cancelRescheduleDate)cancelRescheduleDate.onclick=()=>{state.rescheduleFor=null;render()};
 const saveRescheduleDate=$('#saveRescheduleDate');if(saveRescheduleDate)saveRescheduleDate.onclick=()=>{const x=state.items.find(i=>i.id===state.rescheduleFor);const v=$('#rescheduleDate').value;if(!x||!v)return toast('Vyber datum.');rescheduleItem(x,dateFromInput(v));};
 const x=state.items.find(i=>i.id===state.detail);if(x){
@@ -440,7 +456,7 @@ const x=state.items.find(i=>i.id===state.detail);if(x){
 function previewMany(xs){if(xs.length===1)return preview(xs[0]);return `<div class="parse"><h3>✦ Našel jsem ${xs.length} věcí</h3>${xs.map((x,i)=>`<div style="padding:${i?'10px 0':'4px 0 10px'};${i?'border-top:1px solid #edf2f0':''}"><div class="value">${x.icon} ${esc(x.title)}</div><div class="smallLabel">${esc(labelKind(x.kind))} · ${esc(areaPath(x))}${x.due?' · '+fmt(x.due):x.periodLabel?' · '+esc(x.periodLabel):''}${x.expires?' · do '+fmt(x.expires):''}${x.value?' · '+x.value.toLocaleString('cs-CZ')+' Kč':''}</div></div>`).join('')}</div>`}
 function preview(x){let rows=`<div class="row"><span>Zařadím jako</span><b>${labelKind(x.kind)}</b></div><div class="row"><span>Oblast</span><b>${esc(x.area)}</b></div>${x.entity?`<div class="row"><span>Konkrétně</span><b>${esc(x.entity)}</b></div>`:''}`;if(x.due)rows+=`<div class="row"><span>Termín</span><b>${fmt(x.due)}</b></div>`;if(x.periodLabel)rows+=`<div class="row"><span>Období</span><b>${esc(x.periodLabel)}</b></div>`;if(x.expires)rows+=`<div class="row"><span>Platnost</span><b>${fmt(x.expires)}</b></div>`;if(x.value)rows+=`<div class="row"><span>Hodnota</span><b>${x.value.toLocaleString('cs-CZ')} Kč</b></div>`;return `<div class="parse"><h3>✦ Rozumím tomu takto</h3><div class="value">${x.icon} ${esc(x.title)}</div>${rows}</div>`}
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.3.4';
+const APP_VERSION='0.3.5';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
