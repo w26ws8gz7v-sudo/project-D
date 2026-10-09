@@ -29,6 +29,11 @@ textarea{width:100%;min-height:130px;border:1px solid #dfe5e8;border-radius:18px
 .shoppingItem{padding:10px 12px;gap:8px}.shopCheck{width:52px;height:52px;min-width:52px;border:0;background:transparent;padding:0;display:grid;place-items:center;border-radius:18px;-webkit-tap-highlight-color:transparent}.shopCheck:active{background:#edf8f4}.shopCircle{width:32px;height:32px;border-radius:50%;border:2.5px solid #9fb3aa;background:#fff;display:grid;place-items:center;color:#fff;font-size:18px;font-weight:900;transition:.12s}.shopCheck:active .shopCircle{border-color:var(--green);background:var(--green)}.shopOpen{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:8px 4px;cursor:pointer}.shoppingItem .right{padding:12px 5px 12px 0}.undoToast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(82px + env(safe-area-inset-bottom));width:min(520px,calc(100% - 28px));background:#0f172a;color:#fff;border-radius:18px;padding:12px 12px 12px 16px;z-index:50;box-shadow:0 16px 36px rgba(15,23,42,.24);display:flex;align-items:center;gap:12px;justify-content:space-between}.undoToast span{font-size:14px;line-height:1.25;font-weight:700}.undoToast button{border:0;background:#fff;color:#0f172a;border-radius:12px;padding:10px 14px;font-weight:800;min-width:76px}.manageToolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 14px}.manageToolbar button{flex:1;min-width:120px}.manageItem{padding:9px 12px;gap:8px}.selectBtn{width:52px;height:52px;min-width:52px;border:0;background:transparent;padding:0;display:grid;place-items:center;border-radius:18px;-webkit-tap-highlight-color:transparent}.selectBtn:active{background:#f1f5f9}.selectCircle{width:32px;height:32px;border-radius:50%;border:2.5px solid #a8b5c2;background:#fff;display:grid;place-items:center;color:#fff;font-weight:900;font-size:18px}.selectBtn.selected .selectCircle{border-color:var(--green);background:var(--green)}.manageInfo{flex:1;min-width:0;padding:8px 4px}.manageBar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(72px + env(safe-area-inset-bottom));width:min(540px,calc(100% - 20px));background:#fff;border:1px solid #e5e7eb;border-radius:20px;padding:10px;z-index:19;box-shadow:0 16px 34px rgba(15,23,42,.18);display:grid;grid-template-columns:1fr 1.5fr;gap:8px}.manageBar button{border-radius:14px;padding:12px 10px;font-weight:800}.manageBar .deleteSelected{background:#be123c;color:#fff;border:0}.manageBar .deleteSelected:disabled{opacity:.38}.confirmBox{background:#fff1f2;border:1px solid #fecdd3;border-radius:16px;padding:14px;color:#881337;margin-top:12px}
 .logicBox{background:linear-gradient(135deg,#f2fbf7,#fff);border:1px solid #d8eee5;border-radius:18px;padding:14px;margin:12px 0;color:#245e4b}.logicBox strong{display:block;color:#174d3d;margin-bottom:4px}.historySummary{width:100%;border:1px solid #d8eee5;background:linear-gradient(135deg,#f2fbf7,#fff);border-radius:18px;padding:14px;margin:12px 0 0;text-align:left;color:#245e4b}.historySummary:active{background:#eaf8f2}.historySummary strong{display:block;color:#174d3d;margin-bottom:5px}.historyLast{display:block;font-size:14px;line-height:1.35}.historyMore{display:flex;justify-content:space-between;align-items:center;margin-top:9px;color:#17805f;font-size:13px;font-weight:800}.historyTimeline{display:grid;gap:0;margin-top:14px;border:1px solid #e1eee9;border-radius:18px;overflow:hidden}.historyEvent{padding:13px 14px;border-bottom:1px solid #e8efec;background:#fff}.historyEvent:last-child{border-bottom:0}.historyEvent.current{background:#f2fbf7}.historyEventTitle{font-weight:800;font-size:14px;line-height:1.35}.historyEventMeta{color:var(--muted);font-size:12px;margin-top:4px;line-height:1.35}.choiceGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}.choiceGrid button{border:1px solid #dfe5e8;background:#fff;color:var(--text);border-radius:14px;padding:12px 10px;font-weight:800}.choiceGrid button.recommended{background:var(--green2);border-color:#bfe3d5;color:#176b50}.choiceGrid button.full{grid-column:1/3}.dateChoice{display:grid;gap:10px;margin-top:14px}.dateChoice input{width:100%;border:1px solid #dfe5e8;border-radius:14px;padding:12px 13px}.hidden{display:none!important}
 
+/* Dlouhe podrzeni a presouvani kategorii na mobilu */
+.tile.categoryDragSource{opacity:.25;border-style:dashed;box-shadow:none}
+.tile.categoryDragGhost{position:fixed!important;z-index:80;pointer-events:none!important;opacity:.97;box-shadow:0 22px 48px rgba(15,23,42,.28);transform:scale(1.045) rotate(1deg);transition:none!important;box-sizing:border-box;margin:0}
+body.categoryDragActive{user-select:none;-webkit-user-select:none;cursor:grabbing}
+body.categoryDragActive .tile{cursor:grabbing}
 .customTile{position:relative}.tile{position:relative;user-select:none;-webkit-user-select:none;touch-action:manipulation;transition:transform .12s ease,background .12s ease}.categoryDots{position:absolute;right:8px;top:8px;width:42px;height:42px;border:0;background:transparent;border-radius:13px;color:#64748b;font-size:24px;line-height:1;display:grid;place-items:center;z-index:2}.categoryDots:active{background:#f1f5f9}.categoryActions{display:flex;gap:8px;align-items:center}.categoryActions button{white-space:nowrap}.categorySelectTile{padding-top:12px}.categorySelectBtn{position:absolute;right:9px;top:9px;width:44px;height:44px;border:0;background:transparent;border-radius:14px;padding:0;display:grid;place-items:center;z-index:2}.categorySelectCircle{width:30px;height:30px;border:2.5px solid #a8b5c2;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:900;background:#fff}.categorySelectBtn.selected .categorySelectCircle{background:var(--green);border-color:var(--green)}.categoryMenuList{display:grid;gap:8px;margin-top:16px}.categoryMenuList button{width:100%;text-align:left;border:1px solid #e5e7eb;background:#fff;color:var(--text);border-radius:14px;padding:13px 14px;font-weight:800}.categoryMenuList button.danger{background:#fff1f2;color:#be123c;border-color:#fecdd3}.categoryManageNote{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.35}.hiddenCategoryStrip{margin-top:14px;border-top:1px solid #e8edef;padding-top:8px}.hiddenCategoryToggle{width:100%;border:0;background:transparent;padding:9px 2px;display:flex;align-items:center;justify-content:space-between;color:#64748b;font-weight:800;font-size:12px}.hiddenCategoryList{border:1px solid #e7ecef;background:#fff;border-radius:14px;overflow:hidden;margin-top:4px}.hiddenCategoryRow{display:flex;align-items:center;gap:9px;padding:10px 11px;border-top:1px solid #edf1f3}.hiddenCategoryRow:first-child{border-top:0}.hiddenCategoryMain{min-width:0;flex:1}.hiddenCategoryName{font-weight:850;font-size:13px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hiddenCategoryMeta{font-size:11px;color:#94a3b8;margin-top:2px}.hiddenCategoryBtns{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}.hiddenCategoryBtns button{padding:7px 9px;border-radius:10px;font-size:11px}.hiddenCategoryBtns .danger{background:#fff1f2;color:#be123c;border:1px solid #fecdd3}.emojiSuggestions{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px}.emojiPick{width:42px;height:42px;border:1px solid #dfe5e8;background:#fff;border-radius:12px;font-size:21px;padding:0}.colorRow{display:flex;gap:9px;flex-wrap:wrap;margin-top:7px}.colorPick{width:34px;height:34px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px #d9e2e7;padding:0}.colorPick.selected{box-shadow:0 0 0 3px #0f172a}.overdueBox{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:16px;padding:12px 14px;margin:10px 0 14px;font-size:13px;line-height:1.35}.overdueBox strong{display:block;color:#7c2d12;margin-bottom:2px}.learnBox{background:linear-gradient(135deg,#f4f7ff,#fff);border:1px solid #dfe7ff;border-radius:16px;padding:13px;margin-top:12px;color:#334155}.learnBox strong{display:block;color:#1e3a8a;margin-bottom:4px}
 
 @media (min-width:700px){.shell{padding-top:34px}.nav{border-radius:22px 22px 0 0}}
@@ -113,6 +118,26 @@ function loadLearning(){try{const x=JSON.parse(localStorage.getItem('projectD-le
 let customAreas=loadCustomAreas();
 let builtinSettings=loadBuiltinSettings();
 let learning=loadLearning();
+// Samostatna preference - meni jen poradi karet, nikdy data v kategoriich.
+function loadCategoryOrder(){try{const v=JSON.parse(localStorage.getItem('projectD-category-order-v1')||'[]');return Array.isArray(v)?[...new Set(v.filter(x=>typeof x==='string'))]:[]}catch{return[]}}
+let categoryOrder=loadCategoryOrder();
+function sortedCategoryAreas(areas){
+  const positions=new Map(categoryOrder.map((a,i)=>[a,i]));
+  return areas.map((area,i)=>({area,i})).sort((a,b)=>
+    (positions.has(a.area)?positions.get(a.area):categoryOrder.length+a.i)-
+    (positions.has(b.area)?positions.get(b.area):categoryOrder.length+b.i)
+  ).map(x=>x.area);
+}
+function saveCategoryOrder(){try{localStorage.setItem('projectD-category-order-v1',JSON.stringify(categoryOrder))}catch{}}
+function updateCategoryOrder(visibleOrdered){
+  const visible=new Set(visibleOrdered);
+  const all=sortedCategoryAreas(allAreas({includeHidden:true}));
+  let i=0;
+  // Skryte polozky zustavaji na svych mistech, aby se po obnoveni vratily do poradi.
+  categoryOrder=all.map(a=>visible.has(a)?visibleOrdered[i++]:a);
+  saveCategoryOrder();
+}
+
 if(!learning.areaTokens)learning.areaTokens={};
 function savePersonalization(){try{localStorage.setItem('projectD-custom-areas',JSON.stringify(customAreas));localStorage.setItem('projectD-builtin-area-settings',JSON.stringify(builtinSettings));localStorage.setItem('projectD-learning',JSON.stringify(learning))}catch{}}
 function isBuiltinArea(area){return BUILTIN_AREAS.includes(area)}
@@ -374,7 +399,7 @@ function parseMany(text){return splitInput(text).map(parse)}
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.7</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.8</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -464,7 +489,7 @@ function hiddenAreaRow(a){
 }
 function things(){
   const active=state.items.filter(x=>x.status==='active');
-  const areas=allAreas();const hidden=hiddenAreas();
+  const areas=sortedCategoryAreas(allAreas());const hidden=sortedCategoryAreas(hiddenAreas());
   if(state.manageMode){
     const all=active.slice();
     const known=allAreas({includeHidden:true});
@@ -477,7 +502,7 @@ function things(){
     return `${header()}<div class="sectionHead"><div><h1 class="title" style="margin-bottom:6px">Vybrat položky</h1><p class="subtitle" style="margin:0">Otevři kategorii a označ aktuální věci ke smazání. Historie zůstane zachovaná. Můžeš vybírat i ve více kategoriích.</p></div></div><div class="manageCategoryList">${list}</div>${hiddenList}${advanced}${!all.length?`<div class="empty">Nemáš žádné aktuální věci ke smazání.</div>`:''}`;
   }
   const hiddenStrip=hidden.length?`<div class="hiddenCategoryStrip"><button class="hiddenCategoryToggle" id="hiddenCategories"><span>Skryté kategorie (${hidden.length})</span><span>${state.hiddenCategoriesOpen?'⌃':'⌄'}</span></button>${state.hiddenCategoriesOpen?`<div class="hiddenCategoryList">${hidden.map(hiddenAreaRow).join('')}</div>`:''}</div>`:'';
-  return `${header()}<div class="sectionHead"><div><h1 class="title" style="margin-bottom:6px">Moje věci</h1><p class="subtitle" style="margin:0">Klepni pro otevření. Přes ⋯ spravuješ jen tuto kategorii.</p></div><div class="categoryActions"><button class="secondary" id="newCategory">＋ Kategorie</button><button class="secondary" id="manageItems">Vybrat</button></div></div><div class="grid">${areas.map(a=>{const n=active.filter(x=>x.area===a).length;const custom=customAreaByName(a);return `<div class="tile ${custom?'customTile':''}" data-area="${esc(a)}" style="border-top:4px solid ${esc(areaColor(a))}"><button class="categoryDots" data-category-menu="${esc(a)}" aria-label="Možnosti kategorie ${esc(areaLabel(a))}">⋯</button><div class="tileIcon">${esc(areaEmoji(a))}</div><div class="tileTitle">${esc(areaLabel(a))}</div><div class="tileMeta">${n} aktivních věcí</div></div>`}).join('')}</div>${hiddenStrip}`;
+  return `${header()}<div class="sectionHead"><div><h1 class="title" style="margin-bottom:6px">Moje věci</h1><p class="subtitle" style="margin:0">Podrž kartu a přetáhni. Přes ⋯ ji upravíš.</p></div><div class="categoryActions"><button class="secondary" id="newCategory">＋ Kategorie</button><button class="secondary" id="manageItems">Vybrat</button></div></div><div class="grid">${areas.map(a=>{const n=active.filter(x=>x.area===a).length;const custom=customAreaByName(a);return `<div class="tile ${custom?'customTile':''}" data-area="${esc(a)}" style="border-top:4px solid ${esc(areaColor(a))}"><button class="categoryDots" data-category-menu="${esc(a)}" aria-label="Možnosti kategorie ${esc(areaLabel(a))}">⋯</button><div class="tileIcon">${esc(areaEmoji(a))}</div><div class="tileTitle">${esc(areaLabel(a))}</div><div class="tileMeta">${n} aktivních věcí</div></div>`}).join('')}</div>${hiddenStrip}`;
 }
 
 function addMonthsFrom(base,n){const d=new Date(base||new Date());const day=d.getDate();d.setMonth(d.getMonth()+n);if(d.getDate()!==day)d.setDate(0);return d}
@@ -868,6 +893,7 @@ function categoryDeleteModal(){
 function removeCategoryDefinition(area){
   if(isBuiltinArea(area))return;
   customAreas=customAreas.filter(c=>c.name!==area);
+  categoryOrder=categoryOrder.filter(a=>a!==area);saveCategoryOrder();
   for(const row of Object.values(learning.areaTokens||{})){if(row)delete row[area]}
 }
 function categoryModal(){
@@ -911,7 +937,122 @@ function modal(){
   const source=x.origin==='followup'?'':(x.raw&&x.raw!==displayTitle(x)?`<div class="row"><span>Původní zadání</span><b style="text-align:right;max-width:65%">${esc(x.raw)}</b></div>`:'');
   const history=historyHtml(x);
   return `<div class="modal" id="modal"><div class="sheet"><h2>${x.icon||''} ${esc(displayTitle(x))}</h2><div class="meta">${esc(itemMeta(x))}</div>${x.due?`<div class="row"><span>Termín</span><b>${fmt(x.due)}</b></div>`:''}${itemDaypart(x)?`<div class="row"><span>Část dne</span><b>${esc(itemDaypart(x))}</b></div>`:''}${x.periodLabel?`<div class="row"><span>Období</span><b>${esc(x.periodLabel)}</b></div>`:''}${x.expires?`<div class="row"><span>Platnost</span><b>${fmt(x.expires)}</b></div>`:''}${x.value?`<div class="row"><span>Hodnota</span><b>${x.value.toLocaleString('cs-CZ')} Kč</b></div>`:''}${x.since?`<div class="row"><span>Čekám od</span><b>${fmt(x.since)}</b></div>`:''}${x.snoozedUntil?`<div class="row"><span>Připomenu</span><b>${fmt(x.snoozedUntil)}</b></div>`:''}${history}${source}<div class="sheetActions">${actions}<button id="editItem" class="secondary" style="grid-column:1/3">Upravit</button><button id="delete" class="danger" style="grid-column:1/3">Smazat</button></div></div></div>`}
-function render(){let content='';if(state.tab==='today')content=today();if(state.tab==='add')content=add();if(state.tab==='watch')content=listTab('watch','Hlídám','Dlouhodobé věci přehledně na jednom místě.');if(state.tab==='waiting')content=listTab('waiting','Čekám na','Otevřené věci, které nemusíš držet v hlavě.');if(state.tab==='things')content=things();$('#app').innerHTML=`<main class="shell ${state.manageMode?'shellManage':''}">${content}</main>${nav()}${state.manageMode?`<div class="manageBar"><button class="secondary" id="cancelManage">Zrušit</button><button class="deleteSelected" id="deleteSelected" ${state.selectedIds.length?'':'disabled'}>Smazat vybrané (${state.selectedIds.length})</button></div>`:''}${state.categorySelectMode?`<div class="manageBar"><button class="secondary" id="cancelCategorySelect">Zrušit</button><button class="deleteSelected" id="deleteSelectedCategories" ${state.selectedCategories.length?'':'disabled'}>Smazat kategorie (${state.selectedCategories.length})</button></div>`:''}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}${state.undo?`<div class="undoToast"><span>${esc(state.undo.title)} · ${esc(state.undo.label||'Hotovo')}</span><button id="undoAction">Vrátit</button></div>`:''}${modal()}`;bind()}
+
+// Kategorie: 450 ms podrzeni => presun v mrizce. Kratke klepnuti zustava otevreni.
+let categoryDrag=null;
+let categoryDragIgnoreClicksUntil=0;
+let categoryAutoScrollFrame=0;
+function initCategoryReordering(){
+  function cleanup(){
+    if(!categoryDrag)return;
+    clearTimeout(categoryDrag.timer);
+    categoryDrag.ghost?.remove();
+    categoryDrag.tile?.classList.remove('categoryDragSource');
+    document.body.classList.remove('categoryDragActive');
+    categoryDrag=null;
+    if(categoryAutoScrollFrame)cancelAnimationFrame(categoryAutoScrollFrame);
+    categoryAutoScrollFrame=0;
+  }
+  function placeAt(clientX,clientY){
+    if(!categoryDrag?.active)return;
+    const d=categoryDrag;
+    d.ghost.style.left=(clientX-d.offsetX)+'px';
+    d.ghost.style.top=(clientY-d.offsetY)+'px';
+    // Vybirame slot mrizky podle prstu, ne podle titulku pod nim.
+    // To zabranuje preskakovani mezi pozicemi, kdyz se po presunu zmeni cilovy prvek.
+    const els=[...d.grid.querySelectorAll('.tile[data-area]')];
+    let nearest=-1,best=Infinity;
+    els.forEach((el,i)=>{
+      const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+      const dist=(cx-clientX)**2+(cy-clientY)**2;
+      if(dist<best){best=dist;nearest=i}
+    });
+    const from=els.indexOf(d.tile);
+    if(from<0||nearest<0||nearest===from)return;
+    const target=els[nearest];
+    if(from<nearest)d.grid.insertBefore(d.tile,target.nextSibling);
+    else d.grid.insertBefore(d.tile,target);
+  }
+  function autoScroll(){
+    categoryAutoScrollFrame=0;
+    if(!categoryDrag?.active)return;
+    const d=categoryDrag;
+    const edge=95, bottom=window.innerHeight-95;
+    let speed=0;
+    if(d.y<edge)speed=-Math.min(15,(edge-d.y)*.19);
+    else if(d.y>bottom)speed=Math.min(15,(d.y-bottom)*.19);
+    if(speed){
+      const before=window.scrollY;
+      window.scrollBy(0,speed);
+      if(window.scrollY!==before)placeAt(d.x,d.y);
+    }
+    categoryAutoScrollFrame=requestAnimationFrame(autoScroll);
+  }
+  document.addEventListener('pointerdown',e=>{
+    if(state.tab!=='things'||state.manageMode||state.categorySelectMode||e.button!==0||categoryDrag)return;
+    if(e.target.closest('button,a,input,select,textarea,[data-category-menu]'))return;
+    const tile=e.target.closest('.grid .tile[data-area]');
+    if(!tile)return;
+    const rect=tile.getBoundingClientRect();
+    categoryDrag={tile,grid:tile.parentElement,id:e.pointerId,x:e.clientX,y:e.clientY,
+      offsetX:e.clientX-rect.left,offsetY:e.clientY-rect.top,active:false,moved:false,ghost:null,timer:null};
+    categoryDrag.timer=setTimeout(()=>{
+      const d=categoryDrag;
+      if(!d||d.id!==e.pointerId||d.active||!d.tile.isConnected)return;
+      d.active=true;
+      categoryDragIgnoreClicksUntil=Date.now()+700;
+      d.ghost=d.tile.cloneNode(true);
+      d.ghost.classList.add('categoryDragGhost');
+      d.ghost.removeAttribute('data-area');
+      d.ghost.setAttribute('aria-hidden','true');
+      d.ghost.style.width=rect.width+'px';
+      d.ghost.style.height=rect.height+'px';
+      d.ghost.style.left=rect.left+'px';
+      d.ghost.style.top=rect.top+'px';
+      d.ghost.querySelectorAll('button').forEach(x=>x.disabled=true);
+      document.body.append(d.ghost);
+      d.tile.classList.add('categoryDragSource');
+      document.body.classList.add('categoryDragActive');
+      if(navigator.vibrate)try{navigator.vibrate(16)}catch{}
+      categoryAutoScrollFrame=requestAnimationFrame(autoScroll);
+    },450);
+  });
+  document.addEventListener('pointermove',e=>{
+    const d=categoryDrag;
+    if(!d||e.pointerId!==d.id)return;
+    if(!d.active){if(Math.hypot(e.clientX-d.x,e.clientY-d.y)>9)cleanup();return}
+    d.x=e.clientX;d.y=e.clientY;d.moved=true;
+    if(e.cancelable)e.preventDefault();
+    placeAt(d.x,d.y);
+  },{passive:false});
+  // iOS Safari: po aktivaci zabrani prirozenemu scrollu, pred aktivaci scroll funguje.
+  document.addEventListener('touchmove',e=>{
+    if(categoryDrag?.active&&e.cancelable)e.preventDefault();
+  },{passive:false});
+  function finish(e,cancelled=false){
+    const d=categoryDrag;
+    if(!d||e.pointerId!==d.id)return;
+    if(d.active){
+      categoryDragIgnoreClicksUntil=Date.now()+700;
+      if(!cancelled&&d.moved){
+        const order=[...d.grid.querySelectorAll('.tile[data-area]')].map(el=>el.dataset.area);
+        updateCategoryOrder(order);
+      }
+    }
+    const shouldRefresh=!!d.needsRefresh;
+    cleanup();
+    if(shouldRefresh)render();
+  }
+  document.addEventListener('pointerup',e=>finish(e));
+  document.addEventListener('pointercancel',e=>finish(e,true));
+  document.addEventListener('contextmenu',e=>{
+    if(e.target.closest('.grid .tile[data-area]'))e.preventDefault();
+  });
+  window.addEventListener('blur',cleanup);
+  window.addEventListener('pagehide',cleanup);
+}
+
+function render(){if(categoryDrag?.active){categoryDrag.needsRefresh=true;return}let content='';if(state.tab==='today')content=today();if(state.tab==='add')content=add();if(state.tab==='watch')content=listTab('watch','Hlídám','Dlouhodobé věci přehledně na jednom místě.');if(state.tab==='waiting')content=listTab('waiting','Čekám na','Otevřené věci, které nemusíš držet v hlavě.');if(state.tab==='things')content=things();$('#app').innerHTML=`<main class="shell ${state.manageMode?'shellManage':''}">${content}</main>${nav()}${state.manageMode?`<div class="manageBar"><button class="secondary" id="cancelManage">Zrušit</button><button class="deleteSelected" id="deleteSelected" ${state.selectedIds.length?'':'disabled'}>Smazat vybrané (${state.selectedIds.length})</button></div>`:''}${state.categorySelectMode?`<div class="manageBar"><button class="secondary" id="cancelCategorySelect">Zrušit</button><button class="deleteSelected" id="deleteSelectedCategories" ${state.selectedCategories.length?'':'disabled'}>Smazat kategorie (${state.selectedCategories.length})</button></div>`:''}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}${state.undo?`<div class="undoToast"><span>${esc(state.undo.title)} · ${esc(state.undo.label||'Hotovo')}</span><button id="undoAction">Vrátit</button></div>`:''}${modal()}`;bind()}
 function openCategoryEditor(area){
   if(isBuiltinArea(area)){
     const c=builtinAreaConfig(area);
@@ -929,7 +1070,7 @@ function openCategoryEditor(area){
 }
 function bind(){$$('[data-tab]').forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;state.detail=null;state.historyFor=null;state.editing=null;state.manageMode=false;state.selectedIds=[];state.manageOpenAreas=[];state.manageHiddenOpen=false;state.manageAdvancedOpen=false;state.confirmDelete=null;state.deferFor=null;state.deferCustom=false;state.rescheduleFor=null;state.followup=null;state.followupCustom=false;state.followupMode=null;state.hiddenCategoriesOpen=false;state.categoryMenuFor=null;state.categorySelectMode=false;state.selectedCategories=[];state.categoryDeleteConfirm=null;render()});$$('[data-id]').forEach(e=>e.onclick=()=>{state.detail=e.dataset.id;render()});
 $$('[data-area]').forEach(el=>el.onclick=e=>{
-  if(e.target.closest('[data-category-menu]'))return;
+  if(e.target.closest('[data-category-menu]')||Date.now()<categoryDragIgnoreClicksUntil)return;
   const a=el.dataset.area;const arr=state.items.filter(x=>x.status==='active'&&x.area===a);
   $('.shell').innerHTML=`${header()}<button class="secondary" id="backThings">← Zpět</button><h1 class="title" style="margin-top:18px">${esc(areaLabel(a))}</h1>${arr.length?`<div class="card">${arr.map(x=>itemHtml(x)).join('')}</div>`:`<div class="empty">Zatím nic.</div>`}`;
   $('#backThings').onclick=()=>render();$$('[data-id]').forEach(i=>i.onclick=()=>{state.detail=i.dataset.id;render()});
@@ -956,7 +1097,7 @@ $$('[data-delete-hidden-area]').forEach(b=>b.onclick=e=>{e.stopPropagation();con
 const cancelCategory=$('#cancelCategory');if(cancelCategory)cancelCategory.onclick=()=>{state.categoryEditor=null;render()};
 $$('[data-emoji]').forEach(b=>b.onclick=()=>{const el=$('#categoryEmoji');if(el)el.value=b.dataset.emoji});
 $$('[data-cat-color]').forEach(b=>b.onclick=()=>{state.categoryColor=b.dataset.catColor;if(state.categoryEditor)state.categoryEditor.color=b.dataset.catColor;$$('[data-cat-color]').forEach(x=>x.classList.toggle('selected',x.dataset.catColor===state.categoryColor));});
-const saveCategory=$('#saveCategory');if(saveCategory)saveCategory.onclick=()=>{const name=$('#categoryName').value.trim(),emoji=$('#categoryEmoji').value.trim(),keywords=$('#categoryKeywords').value.split(',').map(x=>x.trim()).filter(Boolean),color=state.categoryColor||CATEGORY_COLORS[0],editor=state.categoryEditor||{};if(!name)return toast('Napiš název kategorie.');const labels=[...BUILTIN_AREAS.filter(k=>!(editor.mode==='builtin'&&k===editor.key)).map(areaLabel),...customAreas.filter(c=>!(editor.mode==='custom'&&c.name===editor.originalName)).map(c=>c.name)];if(labels.some(x=>x.toLowerCase()===name.toLowerCase()))return toast('Taková kategorie už existuje.');const assignIndex=editor.assignToDraftIndex;if(editor.mode==='builtin'){const key=editor.key,def=BUILTIN_DEFAULTS[key];builtinSettings[key]={label:name,emoji:emoji||def.emoji,keywords,color,hidden:!!builtinSettings[key]?.hidden};savePersonalization();state.items.forEach(i=>{if(i.area===key)i.icon=iconFor(i.kind,key)});save()}else{if(BUILTIN_AREAS.includes(name))return toast('Tento název používá interní základní oblast.');const old=editor.originalName;if(old){const c=customAreaByName(old);if(c){c.name=name;c.emoji=emoji;c.keywords=keywords;c.color=color}if(old!==name){state.items.forEach(i=>{if(i.area===old)i.area=name});for(const row of Object.values(learning.areaTokens||{})){if(row&&row[old]){row[name]=(row[name]||0)+row[old];delete row[old]}}}}else customAreas.push({name,emoji,keywords,color,hidden:false});savePersonalization();save();if(Number.isInteger(assignIndex)&&state.addDraft[assignIndex])applyPreviewArea(state.addDraft[assignIndex],name)}state.categoryEditor=null;if(Number.isInteger(assignIndex)){render();toast('Kategorie vytvořená a přiřazená.')}else{render();toast('Kategorie je uložená.')}};
+const saveCategory=$('#saveCategory');if(saveCategory)saveCategory.onclick=()=>{const name=$('#categoryName').value.trim(),emoji=$('#categoryEmoji').value.trim(),keywords=$('#categoryKeywords').value.split(',').map(x=>x.trim()).filter(Boolean),color=state.categoryColor||CATEGORY_COLORS[0],editor=state.categoryEditor||{};if(!name)return toast('Napiš název kategorie.');const labels=[...BUILTIN_AREAS.filter(k=>!(editor.mode==='builtin'&&k===editor.key)).map(areaLabel),...customAreas.filter(c=>!(editor.mode==='custom'&&c.name===editor.originalName)).map(c=>c.name)];if(labels.some(x=>x.toLowerCase()===name.toLowerCase()))return toast('Taková kategorie už existuje.');const assignIndex=editor.assignToDraftIndex;if(editor.mode==='builtin'){const key=editor.key,def=BUILTIN_DEFAULTS[key];builtinSettings[key]={label:name,emoji:emoji||def.emoji,keywords,color,hidden:!!builtinSettings[key]?.hidden};savePersonalization();state.items.forEach(i=>{if(i.area===key)i.icon=iconFor(i.kind,key)});save()}else{if(BUILTIN_AREAS.includes(name))return toast('Tento název používá interní základní oblast.');const old=editor.originalName;if(old){const c=customAreaByName(old);if(c){c.name=name;c.emoji=emoji;c.keywords=keywords;c.color=color}if(old!==name){categoryOrder=categoryOrder.map(a=>a===old?name:a);saveCategoryOrder();state.items.forEach(i=>{if(i.area===old)i.area=name});for(const row of Object.values(learning.areaTokens||{})){if(row&&row[old]){row[name]=(row[name]||0)+row[old];delete row[old]}}}}else customAreas.push({name,emoji,keywords,color,hidden:false});savePersonalization();save();if(Number.isInteger(assignIndex)&&state.addDraft[assignIndex])applyPreviewArea(state.addDraft[assignIndex],name)}state.categoryEditor=null;if(Number.isInteger(assignIndex)){render();toast('Kategorie vytvořená a přiřazená.')}else{render();toast('Kategorie je uložená.')}};
 const resetCategory=$('#resetCategory');if(resetCategory)resetCategory.onclick=()=>{const key=state.categoryEditor?.key;if(!key)return;const wasHidden=!!builtinSettings[key]?.hidden;delete builtinSettings[key];if(wasHidden)builtinSettings[key]={hidden:true};savePersonalization();state.items.forEach(i=>{if(i.area===key)i.icon=iconFor(i.kind,key)});save();state.categoryEditor=null;render();toast('Výchozí podoba je obnovená.');};
 
 const manageItems=$('#manageItems');if(manageItems)manageItems.onclick=()=>{state.manageMode=true;state.selectedIds=[];state.manageOpenAreas=[];state.manageHiddenOpen=false;state.manageAdvancedOpen=false;render()};
@@ -1103,7 +1244,7 @@ function bindPreviewDraft(){
   $$('[data-preview-daypart]').forEach(el=>el.onchange=()=>{const x=state.addDraft[+el.dataset.previewDaypart];if(x)x.daypart=el.value||null});
 }
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.4.7';
+const APP_VERSION='0.4.8';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
@@ -1128,6 +1269,6 @@ window.addEventListener('pagehide',()=>save());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')save();else checkForUpdate()});
 window.addEventListener('pageshow',()=>checkForUpdate());
 if(navigator.storage?.persist){navigator.storage.persist().catch(()=>{})}
-render();hydrateStorage();checkForUpdate();</script>
+initCategoryReordering();render();hydrateStorage();checkForUpdate();</script>
 </body>
 </html>
