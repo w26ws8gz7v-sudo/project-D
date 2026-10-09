@@ -205,7 +205,20 @@ function demo(){const now=today0();const add=n=>new Date(now.getTime()+n*dayMs).
 function loadLocal(){try{const x=JSON.parse(localStorage.getItem('projectD-items')||'null');return Array.isArray(x)?x:demo()}catch{return demo()}}
 function save(){try{localStorage.setItem('projectD-items',JSON.stringify(state.items))}catch{};idbSet(state.items).catch(()=>{})}
 function daysBetween(a,b){return Math.ceil((new Date(a)-new Date(b))/dayMs)}
-function nextWeekday(text){const now=today0();const days={"pondělí":1,"pondeli":1,"úterý":2,"utery":2,"středu":3,"stredu":3,"středa":3,"čtvrtek":4,"ctvrtek":4,"pátek":5,"patek":5,"pátku":5,"patku":5,"sobotu":6,"sobota":6,"neděli":0,"nedeli":0,"neděle":0};const l=text.toLowerCase();for(const [name,target] of Object.entries(days)){if(new RegExp(`\\b(?:do|v|ve)\\s+${name}\\b`,'i').test(l)){const d=new Date(now);let add=(target-d.getDay()+7)%7;d.setDate(d.getDate()+add);return d}}return null}
+function nextWeekday(text){
+  const now=today0();
+  const days={"pondělí":1,"pondeli":1,"úterý":2,"utery":2,"středu":3,"stredu":3,"středa":3,"čtvrtek":4,"ctvrtek":4,"pátek":5,"patek":5,"pátku":5,"patku":5,"sobotu":6,"sobota":6,"neděli":0,"nedeli":0,"neděle":0};
+  const l=text.toLowerCase();
+  // JavaScriptové \b nebere česká písmena jako hranice slov (např. za "úterý").
+  for(const [name,target] of Object.entries(days)){
+    if(new RegExp(`(?:^|\\s)(?:do|v|ve|příští)\\s+${name}(?=\\s|$|[.,!?])`,'i').test(l)){
+      const d=new Date(now);d.setDate(d.getDate()+(target-d.getDay()+7)%7);
+      if(/(?:^|\s)příští\s/i.test(l)&&d.getTime()===now.getTime())d.setDate(d.getDate()+7);
+      return d;
+    }
+  }
+  return null;
+}
 function parseDate(text){const now=today0();let d=null;let m=text.match(/za\s+(\d+)\s*(den|dny|dnů|tyden|týden|týdny|týdnů|mesic|měsíc|měsíce|měsíců)/i);if(m){const n=+m[1],u=m[2].toLowerCase();d=new Date(now);if(u.startsWith('den')||u.startsWith('dn'))d.setDate(d.getDate()+n);else if(u.includes('tý')||u.includes('ty'))d.setDate(d.getDate()+7*n);else d.setMonth(d.getMonth()+n);return d}
 if(/za\s+p[uů]l\s+roku/i.test(text)){d=new Date(now);d.setMonth(d.getMonth()+6);return d}
 m=text.match(/(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})/);if(m){d=new Date(+m[3],+m[2]-1,+m[1]);return d}
@@ -290,6 +303,7 @@ if(/čekám|až mi|až se ozve|odpověď|ozvou\s+se/.test(l)){kind='waiting';sin
 else if(/poukaz|voucher|dárkov(á|y) karta|kredit/.test(l)){kind='voucher';area='Poukazy';value=money(text);expires=ti.date?ti.date.toISOString():null;periodLabel=ti.periodLabel;if(expires){attention=new Date(new Date(expires).getTime()-30*dayMs).toISOString()}}
 else if(/mouka|mléko|granul|tablety do myčky|toalet|\bkoupit\b|\bdokoupit\b|došla|dochází|poslední|\bjar\b|rohlík|banán/.test(l)){kind='shopping';if(area==='Já')area='Domácnost';attention=null;due=ti.exact&&ti.date?ti.date.toISOString():null;periodLabel=ti.periodLabel}
 else if(area==='Smlouvy'&&/^\s*(?:zaplatit|uhradit)/i.test(stripTiming(text))){kind='todo';if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString()}
+else if(/^(?:(?:musím|mám|chci|potřebuji|potřebuju)\s+)?(?:zavolat|volat|napsat|zapsat|poslat|vyzvednout|zařídit)(?=\s|$)/i.test(text.trim())){kind='todo';if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString()}
 else if(['Ben','Vozidla','Smlouvy','Zahrada','Zdraví','Dům'].includes(area)){kind='watch';periodLabel=ti.periodLabel;if(ti.exact&&ti.date)due=ti.date.toISOString();if(ti.date){if(area==='Ben')attention=ti.exact?new Date(ti.date.getTime()-14*dayMs).toISOString():ti.date.toISOString();else if(area==='Zahrada'||area==='Dům')attention=ti.date.toISOString();else if(area==='Smlouvy'&&/měsíc\s+předem/i.test(l))attention=minusMonth(ti.date).toISOString();else attention=new Date(ti.date.getTime()-30*dayMs).toISOString()}}
 else {if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString()}
 icon=iconFor(kind,area);
@@ -323,7 +337,7 @@ function parseMany(text){return splitInput(text).map(parse)}
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.5</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.6</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -433,7 +447,7 @@ function addMonthsFrom(base,n){const d=new Date(base||new Date());const day=d.ge
 function addYearsFrom(base,n){const d=new Date(base||new Date());d.setFullYear(d.getFullYear()+n);return d}
 function addDaysFrom(base,n){const d=new Date(base||new Date());d.setDate(d.getDate()+n);return d}
 function nextSpringFrom(base){const b=new Date(base||new Date());return new Date(b.getFullYear()+1,2,1,12,0,0,0)}
-function textOf(x){return `${displayTitle(x)} ${x.raw||''}`.toLowerCase()}
+function textOf(x){const title=displayTitle(x);return (x.origin==='followup'||/^Návaznost na:/i.test(x.raw||'')?title:`${title} ${x.raw||''}`).toLowerCase()}
 
 function isAppointmentBooking(x){
   if(!x||x.kind==='shopping'||x.kind==='voucher')return false;
@@ -1001,6 +1015,7 @@ function applyPreviewDate(x,value){
   }else{
     x.due=iso;
     if(!iso)x.attention=x.kind==='todo'?new Date().toISOString():null;
+    else if(x.kind==='todo')x.attention=iso;
     else if(x.area==='Ben')x.attention=new Date(new Date(iso).getTime()-14*dayMs).toISOString();
     else if(['Vozidla','Zdraví','Smlouvy'].includes(x.area))x.attention=new Date(new Date(iso).getTime()-30*dayMs).toISOString();
     else x.attention=iso;
@@ -1014,7 +1029,7 @@ function bindPreviewDraft(){
   $$('[data-preview-date]').forEach(el=>el.onchange=()=>{const x=state.addDraft[+el.dataset.previewDate];if(!x)return;applyPreviewDate(x,el.value)});
 }
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.4.5';
+const APP_VERSION='0.4.6';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
