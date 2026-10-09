@@ -353,7 +353,7 @@ function conciseAction(text,area=''){
 }
 function actionableInstruction(text){
   const t=conciseAction(text).toLowerCase();
-  return /^(?:zavolat|volat|napsat|zapsat|poznamenat|poslat|vyzvednout|zařídit|objednat|domluvit|rezervovat|přihlásit|zkontrolovat|zaplatit|uhradit|ověřit|ostříhat|odvézt|přivézt|připravit|udělat|vyřídit)(?=\s|$)/i.test(t);
+  return /^(?:zavolat|volat|napsat|zapsat|poznamenat|poslat|vyzvednout|zařídit|objednat|domluvit|rezervovat|přihlásit|zkontrolovat|zaplatit|uhradit|ověřit|ostříhat|odvézt|přivézt|připravit|udělat|vyřídit|přezout|vyčistit|vypovědět|zalít|vyměnit|opravit|uklidit)(?=\s|$)/i.test(t);
 }
 function cardTitle(x){
   const title=displayTitle(x);
@@ -376,7 +376,7 @@ function splitInput(text){
   source=source.replace(/(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})/g,(_,d,m,y)=>`${d}§${m}§${y}`);
   const parts=source.split(/(?:[!?;]+|\.(?=\s|$)|\n+)/).map(s=>s.replace(/§/g,'.').trim()).filter(Boolean);
   const out=[];
-  const taskVerbs='zavolat|zařídit|objednat|vyzvednout|poslat|napsat|zaplatit|ověřit|zkontrolovat|ostříhat|rezervovat|přihlásit|odvézt|přivézt|koupit|dokoupit';
+  const taskVerbs='zavolat|zařídit|objednat|vyzvednout|poslat|napsat|zaplatit|ověřit|zkontrolovat|ostříhat|rezervovat|přihlásit|odvézt|přivézt|koupit|dokoupit|přezout|vyčistit|vypovědět|zalít|vyměnit|opravit|uklidit';
   parts.forEach(part=>{
     let p=part.replace(/^a\s+ještě\s+/i,'').replace(/^a\s+/i,'').trim();
     const shop=p.match(/^(?:(?:musím|potřebuji|chci)\s+)?(?:koupit|dokoupit)\s+(.+)$/i);
@@ -399,7 +399,7 @@ function parseMany(text){return splitInput(text).map(parse)}
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.10</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.11</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -649,73 +649,51 @@ function actionProfile(x){
 function followupProfile(x){
   const l=textOf(x);
   if(x.kind==='voucher'||x.kind==='shopping')return null;
-
+  // Nejprve skutečný děj, až potom tematická kategorie: telefonát o smlouvě není prodloužení smlouvy.
   if(x.workflow==='appointment'&&x.appointmentStage==='scheduled')return{
-    type:'appointment_next',
-    title:'Domluvili jste další termín?',
-    text:'Pokud ano, zadej ho rovnou. D zachová celou historii od původní upomínky přes návštěvu až k dalšímu termínu.'
-  };
+    type:'appointment_next',title:'Domluvili jste další termín?',
+    text:'Pokud ano, zadej ho rovnou. D zachová historii návštěvy i navazujících termínů.'};
   if(isAppointmentBooking(x))return{
-    type:'appointment_book',
-    title:'Na kdy jsi objednaný?',
-    text:'Zadej skutečný termín návštěvy. Původní upomínka zůstane v historii a vznikne navazující termín.'
-  };
-
-  if(x.kind==='waiting'&&x.area==='Vozidla'&&(x.topic==='Servis'||/servis/.test(l)))return{
-    type:'service',
-    title:'Je domluvený termín servisu?',
-    text:'Když ano, D si pohlídá samotný termín a servis už nezmizí do prázdna.'
-  };
-  if(x.area==='Ben'&&/stříh/.test(l))return{
-    type:'grooming',
-    title:'Chceš hlídat další stříhání?',
-    text:'Vyber za jak dlouho se ti má připomenout znovu.'
-  };
-  if(x.area==='Zdraví'&&(/zubař/.test(l)||/zub.*kontrol/.test(l)||/dent/.test(l)))return{
-    type:'dentist',
-    title:'Kdy má být další kontrola?',
-    text:'Po absolvování si můžeš rovnou založit další kontrolu.'
-  };
-  if(x.area==='Vozidla'&&(x.topic==='STK'||/\bstk\b/.test(l)||/technick/.test(l)))return{
-    type:'stk',
-    title:'Pohlídat další STK?',
-    text:'Interval se může lišit podle typu vozidla a použití. Vyber další termín, který platí pro konkrétní vozidlo.'
-  };
-  if(x.area==='Zahrada')return{
-    type:'garden',
-    title:'Připomenout to i další sezonu?',
-    text:'U sezónních prací dává smysl návaznost na příští rok.'
-  };
-  if(x.area==='Dům'&&/topen|komín|kotel|reviz|vyčist/.test(l))return{
-    type:'annual',
-    title:'Pohlídat údržbu znovu?',
-    text:'U domácí údržby může D rovnou navázat připomenutím na další rok.'
-  };
-  if(x.area==='Smlouvy')return{
-    type:'contract',
-    title:'Má smlouva nový konec?',
-    text:'Pokud pokračuje, zadej nové datum a D ji bude dál hlídat.'
-  };
+    type:'appointment_book',title:'Na kdy jsi objednaný?',
+    text:'Zadej skutečný termín návštěvy. Původní objednání zůstane v historii.'};
+  if(x.kind==='waiting'){
+    if(x.area==='Vozidla'&&(x.topic==='Servis'||/servis/.test(l)))return{
+      type:'service',title:'Je domluvený termín servisu?',
+      text:'Pokud ano, nastav termín a D ho bude hlídat.'};
+    return{type:'generic_outcome',title:'Vzniklo z vyřešení něco dalšího?',
+      text:'Můžeš navázat dalším krokem, nebo věc uzavřít.'};
+  }
+  if(/(?:^|\s)(?:zavolat|volat|telefonovat)(?=\s|$)/i.test(l))return{
+    type:'call_outcome',title:'Co z hovoru vzniklo?',
+    text:'Můžeš založit další telefonát, schůzku, čekání na odpověď či nový krok.'};
+  // Administrativní činnost sama o sobě neznamená absolvovanou prohlídku, revizi ani obnovení smlouvy.
+  if(x.kind==='todo'&&/^(?:zapsat|poznamenat|poslat|napsat|zaplatit|uhradit|vypovědět|připravit|vyřídit)(?=\s|$)/i.test(l))return{
+    type:'generic_outcome',title:'Vzniklo z toho něco dalšího?',
+    text:'Pokud ano, vytvoř další úkol, termín nebo čekání. Jinak věc uzavři.'};
+  if(x.kind==='watch'&&x.area==='Ben'&&/stříh/.test(l))return{
+    type:'grooming',title:'Chceš hlídat další stříhání?',
+    text:'Vyber, za jak dlouho se má připomenout znovu.'};
+  if(x.kind==='watch'&&x.area==='Zdraví'&&(/zubař/.test(l)||/zub.*kontrol/.test(l)||/dent/.test(l)))return{
+    type:'dentist',title:'Kdy má být další kontrola?',
+    text:'Po absolvování můžeš založit další zubní kontrolu.'};
+  if(x.kind==='watch'&&x.area==='Vozidla'&&(x.topic==='STK'||/\bstk\b/.test(l)||/technick/.test(l)))return{
+    type:'stk',title:'Pohlídat další STK?',
+    text:'Vyber další termín vhodný pro konkrétní vozidlo.'};
+  if(x.area==='Zahrada'&&(x.kind==='watch'||/^(?:ostříhat|zkontrolovat).*levandul/i.test(l)))return{
+    type:'garden',title:'Připomenout to i další sezonu?',
+    text:'U sezónních prací se může hodit připomenutí na příští rok.'};
+  if(x.kind==='watch'&&x.area==='Dům'&&/topen|komín|kotel|reviz|vyčist/.test(l))return{
+    type:'annual',title:'Pohlídat údržbu znovu?',
+    text:'Pokud jde o pravidelnou údržbu, nastav připomenutí na další rok.'};
+  if(x.kind==='watch'&&x.area==='Smlouvy')return{
+    type:'contract',title:'Má smlouva nový konec?',
+    text:'Pokud smlouva pokračuje, zadej nové datum platnosti.'};
   if(x.kind==='watch'&&/pojiště/.test(l))return{
-    type:'annual',
-    title:'Připomenout znovu za rok?',
-    text:'Opakující se věc může pokračovat jako další záznam.'
-  };
-  if((x.kind==='todo'||x.kind==='watch')&&/zavolat|telefon|volat/.test(l))return{
-    type:'call_outcome',
-    title:'Co z hovoru vzniklo?',
-    text:'Hovor může být hotový bez pokračování, nebo z něj může vzniknout další telefonát, schůzka, čekání na odpověď či jiný krok.'
-  };
-  if(x.kind==='waiting')return{
-    type:'generic_outcome',
-    title:'Vzniklo z vyřešení něco dalšího?',
-    text:'Pokud ano, D na to může rovnou navázat. Pokud ne, věc tím končí.'
-  };
+    type:'annual',title:'Připomenout znovu za rok?',
+    text:'Založ další termín pouze pokud je to správný interval.'};
   if(x.kind==='todo'||x.kind==='watch')return{
-    type:'generic_outcome',
-    title:'Vzniklo z toho něco dalšího?',
-    text:'Můžeš navázat dalším připomenutím, termínem, čekáním nebo jiným krokem. Když nic nenavazuje, prostě věc uzavři.'
-  };
+    type:'generic_outcome',title:'Vzniklo z toho něco dalšího?',
+    text:'Navazuj dalším připomenutím, termínem, čekáním nebo úkolem. Jinak věc uzavři.'};
   return null;
 }
 function followupDueBase(x){const l=textOf(x);if(x.area==='Ben'&&/stříh/.test(l))return x.completedAt||new Date().toISOString();return x.due||x.expires||x.completedAt||new Date().toISOString()}
@@ -1284,7 +1262,7 @@ function bindPreviewDraft(){
   $$('[data-preview-daypart]').forEach(el=>el.onchange=()=>{const x=state.addDraft[+el.dataset.previewDaypart];if(x)x.daypart=el.value||null});
 }
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.4.10';
+const APP_VERSION='0.4.11';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
