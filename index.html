@@ -601,7 +601,7 @@ function parseMany(text){
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.14</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.16</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -1468,7 +1468,7 @@ function bindPreviewDraft(){
   $$('[data-preview-daypart]').forEach(el=>el.onchange=()=>{const x=state.addDraft[+el.dataset.previewDaypart];if(x)x.daypart=el.value||null});
 }
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.4.15';
+const APP_VERSION='0.4.16';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
@@ -1479,9 +1479,15 @@ async function checkForUpdate(){
     const r=await fetch(u.toString(),{cache:'no-store'});
     if(!r.ok)return;
     const html=await r.text();
-    const m=html.match(/v(\d+\.\d+\.\d+)/);
+    // Číslo verze čteme z jednoznačné konstanty, nikoli z nápisů na obrazovce.
+    const m=html.match(/\bconst\s+APP_VERSION\s*=\s*['"](\d+\.\d+\.\d+)['"]/);
     const remote=m&&m[1];
-    if(remote&&remote!==APP_VERSION){
+    // Nikdy nepřesměrovávat na starší verzi ani do smyčky při chybně cachované stránce.
+    const rv=(remote||'').split('.').map(Number),lv=APP_VERSION.split('.').map(Number);
+    const newer=rv.length===3&&rv.every(Number.isFinite)&&(
+      rv[0]>lv[0]||(rv[0]===lv[0]&&(rv[1]>lv[1]||(rv[1]===lv[1]&&rv[2]>lv[2])))
+    );
+    if(remote&&newer){
       const next=new URL('index.html',location.href);
       next.searchParams.set('v',remote);
       next.searchParams.set('__pd_load',Date.now().toString());
