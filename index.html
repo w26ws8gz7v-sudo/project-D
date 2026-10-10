@@ -662,6 +662,53 @@ function medicalTopicLabel(x){
   if(medicalSpecialtyFromText(x.raw||x.title))return 'Specializace / typ vyšetření';
   return 'Co hlídám / typ věci';
 }
+// Nápovědy se řídí smyslem záznamu, nikoli výchozím příkladem z jiné oblasti.
+// Funguje i při přejmenování vestavěných kategorií: klíč v datech se nemění.
+function entityInputHint(x){
+  if(isMedicalItem(x)){
+    if(/očkov|ockov/i.test(textOf(x)))return 'např. Já, dítě, partner';
+    const specialty=medicalSpecialtyFromText(x.raw||x.title);
+    if(specialty==='Oční')return 'např. MUDr. Nováková, oční ambulance';
+    if(specialty==='Gastroenterologie')return 'např. gastroenterolog, gastro ambulance';
+    if(specialty==='ORL')return 'např. ORL ambulance, MUDr. Novák';
+    if(specialty==='Zubař')return 'např. zubní lékař, dentální klinika';
+    return 'např. MUDr. Nováková, odborná ambulance';
+  }
+  switch(x?.area){
+    case 'Vozidla':return 'např. BMW, Škoda Octavia, dodávka';
+    case 'Ben':case 'Mazlíčci':return 'např. Rex, Mína, jméno mazlíčka';
+    case 'Dům':return 'např. Kotel, pračka, okna';
+    case 'Zahrada':return 'např. Trávník, levandule, jezírko';
+    case 'Rodina':return 'např. Máma, táta, děti';
+    case 'Práce':return 'např. Klient, kolega, zakázka';
+    case 'Smlouvy':return 'např. Elektřina, internet, nájem';
+    case 'Finance':return 'např. Spořicí účet, hypotéka';
+    case 'Já':return 'např. Kadeřník, trenér';
+    case 'Domácnost':return 'např. Pračka, lednice, nábytek';
+    case 'Nákupy':return 'např. Obchod, konkrétní výrobek';
+    default:return 'např. osoba, věc, název projektu';
+  }
+}
+function topicInputHint(x){
+  if(isMedicalItem(x)){
+    if(/očkov|ockov/i.test(textOf(x)))return 'např. Tetanus, chřipka, 2. dávka';
+    if(medicalSpecialtyFromText(x.raw||x.title))return 'např. Oční lékařství, ORL, gastroenterologie';
+    return 'např. Prevence, výsledky, vyšetření';
+  }
+  switch(x?.area){
+    case 'Vozidla':return 'např. STK, servis, pojištění';
+    case 'Ben':case 'Mazlíčci':return 'např. Veterina, očkování, stříhání';
+    case 'Dům':case 'Domácnost':return 'např. Revize, oprava, záruka';
+    case 'Zahrada':return 'např. Zalévání, hnojení, údržba';
+    case 'Rodina':return 'např. Narozeniny, návštěva, oslava';
+    case 'Práce':return 'např. Schůzka, faktura, termín';
+    case 'Smlouvy':return 'např. Obnova, výpověď, platnost';
+    case 'Finance':return 'např. Platba, splatnost, kontrola';
+    case 'Já':return 'např. Objednání, kontrola, nákup';
+    case 'Nákupy':return 'např. Vyzvednutí, objednávka, záruka';
+    default:return 'např. kontrola, obnova, termín';
+  }
+}
 function isMedicalItem(x){return x&&x.area==='Zdraví'}
 function isClinicalEvent(x){return isMedicalItem(x)&&x.kind==='watch'&&(!isAppointmentBooking(x)||x.appointmentStage==='scheduled')}
 
@@ -825,7 +872,7 @@ function parseMany(text){
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.23</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.24</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -1705,8 +1752,8 @@ function modal(){
       <label>Název<input id="editTitle" value="${esc(displayTitle(x))}"></label>
       <label>Typ<select id="editKind"><option value="todo" ${x.kind==='todo'?'selected':''}>Úkol</option><option value="watch" ${x.kind==='watch'?'selected':''}>Hlídám</option><option value="waiting" ${x.kind==='waiting'?'selected':''}>Čekám</option><option value="shopping" ${x.kind==='shopping'?'selected':''}>Nákup</option><option value="voucher" ${x.kind==='voucher'?'selected':''}>Poukaz</option></select></label>
       <label>Oblast<select id="editArea">${currentHidden?`<option value="${esc(x.area)}" selected disabled>${esc(areaLabel(x.area))} (skrytá – obnov v Moje věci)</option>`:''}${areas.map(a=>`<option value="${a}" ${x.area===a?'selected':''}>${esc(areaLabel(a))}</option>`).join('')}</select></label>
-      <label>${isMedicalItem(x)&&medicalSpecialtyFromText(x.raw||x.title)&&!/očkov/i.test(textOf(x))?"Konkrétní lékař / osoba (volitelné)":"Konkrétní osoba / věc (volitelné)"}<input id="editEntity" value="${esc(x.entity||'')}" placeholder="např. Táta, Audi Q8, Topení"></label>
-      <label>${isMedicalItem(x)&&/očkov/i.test(textOf(x))?'Druh očkování / dávka (volitelné)':isMedicalItem(x)&&medicalSpecialtyFromText(x.raw||x.title)?'Specializace / typ vyšetření (volitelné)':'Co hlídám (volitelné)'}<input id="editTopic" value="${esc(x.topic||'')}" placeholder="např. STK, Servis, Pojištění"></label>
+      <label>${isMedicalItem(x)&&medicalSpecialtyFromText(x.raw||x.title)&&!/očkov/i.test(textOf(x))?"Konkrétní lékař / osoba (volitelné)":"Konkrétní osoba / věc (volitelné)"}<input id="editEntity" value="${esc(x.entity||'')}" placeholder="${esc(entityInputHint(x))}"></label>
+      <label>${isMedicalItem(x)&&/očkov/i.test(textOf(x))?'Druh očkování / dávka (volitelné)':isMedicalItem(x)&&medicalSpecialtyFromText(x.raw||x.title)?'Specializace / typ vyšetření (volitelné)':'Co hlídám (volitelné)'}<input id="editTopic" value="${esc(x.topic||'')}" placeholder="${esc(topicInputHint(x))}"></label>
       <label id="editDateLabel">${dateLabel}<input id="editDate" type="date" value="${dateForForm}"></label>
       <label id="editReminderLabel" ${x.kind==='shopping'?'class="hidden"':''}>Připomenout (volitelné)<input id="editReminder" type="date" value="${dateInputValue(x.snoozedUntil)}"></label>
       <label id="editSinceRow" ${isWait?'':'class="hidden"'}>Čekám od<input id="editSince" type="date" value="${dateInputValue(x.since)}"></label>
@@ -1855,8 +1902,50 @@ function openCategoryEditor(area){
     render();
   }
 }
+// iOS Safari často po focus() přepíše výběr textu vlastní pozicí kurzoru.
+// Proto vybíráme text po klepnutí. Další klepnutí do téhož pole už funguje
+// normálně (uživatel může opravit jediné slovo). Žádné zásahy do dat.
+function bindTapToSelectText(root=document){
+  root.querySelectorAll('input:not([type="date"]):not([type="number"]):not([type="checkbox"]):not([type="time"]), textarea').forEach(el=>{
+    if(el.dataset.autoSelectBound)return;
+    el.dataset.autoSelectBound='1';
+    let selectedOnThisVisit=false;
+    let needsSelection=false;
+    let existingValue='';
+    const selectAll=(force=false)=>{
+      if(document.activeElement!==el || !el.value || el.value!==existingValue || (selectedOnThisVisit&&!force))return;
+      try{el.setSelectionRange(0,el.value.length)}catch(_){try{el.select()}catch(_){}}
+      selectedOnThisVisit=true;
+    };
+    el.addEventListener('pointerdown',()=>{
+      // První dotek již napsaného pole. Nezávisí na tom, zda iOS
+      // při klepnutí mimo pole předtím vyvolal blur.
+      needsSelection=!!el.value&&!selectedOnThisVisit;
+      existingValue=el.value;
+    });
+    el.addEventListener('focus',()=>{
+      if(!el.value || selectedOnThisVisit || !needsSelection)return;
+      existingValue=el.value;
+      // Vybrat vše jen při skutečném klepnutí do již vyplněného pole.
+      // Programové focus() při diktování musí zachovat kurzor na konci!
+      requestAnimationFrame(()=>{if(needsSelection)selectAll()});
+    });
+    el.addEventListener('click',()=>{
+      if(!needsSelection)return;
+      // Na iOS může nativní click přemístit kurzor až po události focus.
+      setTimeout(()=>{if(needsSelection)selectAll(true);needsSelection=false},0);
+    });
+    el.addEventListener('pointerup',()=>{
+      if(!needsSelection)return;
+      // Pokud iOS potlačí click při zobrazení textové nabídky, máme zálohu.
+      setTimeout(()=>{if(needsSelection)selectAll(true);needsSelection=false},35);
+    });
+    el.addEventListener('blur',()=>{selectedOnThisVisit=false;needsSelection=false});
+    el.addEventListener('input',()=>{needsSelection=false;selectedOnThisVisit=false});
+  });
+}
 function bind(){enhanceDateFields();enhanceClockFields();
-  $$('input:not([type="date"]):not([type="number"]):not([type="checkbox"]):not([type="time"]),textarea').forEach(el=>{el.addEventListener('focus',()=>{if(el.value&&typeof el.select==='function')requestAnimationFrame(()=>{if(document.activeElement===el)el.select()})},{once:true})});
+  bindTapToSelectText();
   $$('[data-tab]').forEach(b=>b.onclick=()=>{if(b.dataset.tab!=='add')haltVoiceOnNavigation();if(b.dataset.tab==='add'&&state.tab!=='add'){state.addText='';state.addDraft=[];}state.tab=b.dataset.tab;state.detail=null;state.voucherListReturn=false;state.historyFor=null;state.openArea=null;state.categoryHistoryOpen=false;state.categoryHistoryQuery='';state.categoryHistoryNotesOnly=false;state.categoryHistoryLimit=25;state.categoryHistoryShowOld=false;state.categoryHistoryMonths=6;state.historyMonthLimits={};state.historyDateEdit=false;state.deleteOneFor=null;state.editing=null;state.manageMode=false;state.selectedIds=[];state.manageOpenAreas=[];state.manageHiddenOpen=false;state.manageAdvancedOpen=false;state.confirmDelete=null;state.deferFor=null;state.deferCustom=false;state.rescheduleFor=null;state.followup=null;state.followupCustom=false;state.followupMode=null;state.hiddenCategoriesOpen=false;state.categoryMenuFor=null;state.categorySelectMode=false;state.selectedCategories=[];state.categoryDeleteConfirm=null;render()});$$('[data-id]').forEach(e=>e.onclick=()=>{state.detail=e.dataset.id;state.voucherListReturn=false;render()});
 $$('[data-area]').forEach(el=>el.onclick=e=>{
   if(e.target.closest('[data-category-menu]')||Date.now()<categoryDragIgnoreClicksUntil)return;
@@ -2125,8 +2214,8 @@ function previewItemEditor(x,i){
     ${x.due?`<div class="smallLabel">Termín: ${fmt(x.due)}${x.daypart?' · '+esc(x.daypart):''}</div>`:''}<div class="smallLabel previewClockSummary" data-preview-time-summary="${i}" ${x.appointmentTime?'':'hidden'}>${x.appointmentTime?'Čas: '+esc(cleanClockTime(x.appointmentTime)):''}</div>${x.expires?`<div class="smallLabel">Platnost: ${fmt(x.expires)}</div>`:''}${x.value?`<div class="smallLabel">Hodnota: ${x.value.toLocaleString('cs-CZ')} Kč</div>`:''}${extraDate}${vehicleUncertain}
     <details class="previewDetails" ${vehicleUncertain?'open':''}><summary>${vehicleUncertain?'Zkontrolovat / opravit rozpoznání ›':'Upravit podrobnosti ›'}</summary><div class="previewEditGrid">
       <label>Název<input data-preview-title="${i}" value="${esc(x.title)}"></label>
-      <label>${isMedicalItem(x)&&medicalSpecialtyFromText(x.raw||x.title)&&!(/očkov|ockov/i.test(textOf(x)))?"Konkrétní lékař / osoba (volitelné)":"Konkrétně / osoba / objekt"}<input data-preview-entity="${i}" value="${esc(x.entity||'')}" placeholder="např. Audi Q8, Táta, Novák"></label>
-      <label>${esc(medicalTopicLabel(x))}<input data-preview-topic="${i}" value="${esc(x.topic||'')}" placeholder="např. STK, Servis, Schůzka"></label>
+      <label>${isMedicalItem(x)&&medicalSpecialtyFromText(x.raw||x.title)&&!(/očkov|ockov/i.test(textOf(x)))?"Konkrétní lékař / osoba (volitelné)":"Konkrétně / osoba / objekt"}<input data-preview-entity="${i}" value="${esc(x.entity||'')}" placeholder="${esc(entityInputHint(x))}"></label>
+      <label>${esc(medicalTopicLabel(x))}<input data-preview-topic="${i}" value="${esc(x.topic||'')}" placeholder="${esc(topicInputHint(x))}"></label>
       <label>Poznámky (volitelné)<textarea data-preview-notes="${i}" rows="2" placeholder="Co si chceš pamatovat?">${esc(x.notes||'')}</textarea></label>
       <label>${dateLabel}<input data-preview-date="${i}" type="date" value="${previewDateValue(x)}"></label><label>Přesný čas (volitelné)${clockInputHtml(`previewClock${i}`,x.appointmentTime||"","Přesný čas")}</label><label>Část dne<select data-preview-daypart="${i}"><option value="" ${!x.daypart?'selected':''}>Bez určení</option>${['ráno','dopoledne','odpoledne','večer','v noci'].map(d=>`<option value="${d}" ${x.daypart===d?'selected':''}>${d}</option>`).join('')}</select></label>
     </div></details>
@@ -2177,9 +2266,10 @@ function bindPreviewDraft(){
   });
   enhanceClockFields();
   enhanceDateFields(document.querySelector('#preview')||document);
+  bindTapToSelectText(document.querySelector('#preview')||document);
 }
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.4.23';
+const APP_VERSION='0.4.24';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
