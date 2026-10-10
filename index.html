@@ -127,6 +127,13 @@ body.categoryDragActive .tile{cursor:grabbing}
 .historyNotesOnly{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#435568;padding:2px 1px 5px}
 .historyNotesOnly input{width:18px;height:18px;accent-color:#2fa37c}
 .vehicleGuessNotice{margin-top:9px;padding:10px 12px;border:1px solid #d5e5f6;border-radius:12px;background:#f2f8ff;color:#235475;font-size:13px;line-height:1.5}.vehicleGuessNotice b{color:#133d60}
+
+/* Jednotné přepsání celého zadání bez zdlouhavého mazání na telefonu. */
+.newTextWrap{position:relative}
+.newTextWrap textarea{padding-right:58px!important}
+.newTextClear{position:absolute;right:11px;top:12px;z-index:3;display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:12px;background:#edf5f1;color:#2a6754;font-size:27px;font-weight:700;cursor:pointer}
+.newTextClear[hidden],.previewClockSummary[hidden]{display:none!important}
+.previewEditGrid .clockFieldWrap{display:block;width:100%;min-height:55px}
 </style>
 </head>
 <body>
@@ -449,6 +456,7 @@ function updateAddDraftFromInput(value){
   state.addText=value;
   state.addDraft=value.trim()?parseMany(value.trim()):[];
   const textarea=$('#newText');if(textarea&&textarea.value!==value)textarea.value=value;
+  const clear=$('#clearNewText');if(clear)clear.hidden=!value;
   const p=$('#preview');if(p){p.innerHTML=state.addDraft.length?previewMany(state.addDraft):'';bindPreviewDraft()}
 }
 function speechTextWithPrefix(speech){
@@ -644,6 +652,16 @@ const MEDICAL_SPECIALTIES=[
  ['Praktický lékař',/(?:praktick[yae]|obvodn[iy])/]
 ];
 function medicalSpecialtyFromText(t){const n=normalizedText(String(t||''));return MEDICAL_SPECIALTIES.find(p=>p[1].test(n))?.[0]||null}
+function medicalSpecialtyLabel(name){
+  // Konkrétní odbornosti jsou typ návštěvy, nikoliv jméno člověka.
+  return ({'Oční':'Oční lékařství','Kožní':'Dermatologie','Plicní':'Plicní lékařství'})[name]||name;
+}
+function medicalTopicLabel(x){
+  if(!isMedicalItem(x))return 'Co hlídám / typ věci';
+  if(/očkov|ockov/i.test(textOf(x)))return 'Druh očkování / dávka';
+  if(medicalSpecialtyFromText(x.raw||x.title))return 'Specializace / typ vyšetření';
+  return 'Co hlídám / typ věci';
+}
 function isMedicalItem(x){return x&&x.area==='Zdraví'}
 function isClinicalEvent(x){return isMedicalItem(x)&&x.kind==='watch'&&(!isAppointmentBooking(x)||x.appointmentStage==='scheduled')}
 
@@ -676,7 +694,7 @@ function detectEntity(text,area){const l=text.toLowerCase();
   if(area==='Finance'){if(/rodinný\s+rozpočet|rozpočet/.test(l))return'Rozpočet';if(/spořic|spořen/.test(l))return'Spořicí účet';if(/hypoték/.test(l))return'Hypotéka';if(/úvěr|půjčk/.test(l))return'Úvěr';if(/investic/.test(l))return'Investice';return null}
   if(area==='Zahrada'){if(/levand/.test(l))return'Levandule';if(/okrasn.*tráv|trávy/.test(l))return'Okrasné trávy';if(/trávník/.test(l))return'Trávník';if(/strom/.test(l))return'Stromy';if(/záhon/.test(l))return'Záhon';return null}
   if(area==='Já'){if(/kadeř|holič/.test(l))return'Kadeřník';return null}
-  if(area==='Zdraví')return medicalSpecialtyFromText(text)||(/doktor|lékař|ordinac/.test(l)?'Lékař':null);
+  if(area==='Zdraví'){const speciality=medicalSpecialtyFromText(text);if(speciality&&speciality!=='Očkování')return null;return speciality||(/doktor|lékař|ordinac/.test(l)?'Lékař':null);}
   return null
 }
 function detectTopic(text,area){
@@ -690,7 +708,7 @@ function detectTopic(text,area){
     if(/\bklist|encefalitid/.test(n))return 'Klíšťová encefalitida';
     const fromText=stripTiming(String(text)).match(/(?:proti|na)\s+([\p{L}\p{M}-]+(?:\s+[\p{L}\p{M}-]+)?)(?:\s*$|[,.;])/iu);
     return fromText?'Proti '+fromText[1]:'Očkování';
-  }if(/preventiv|prohlidk/.test(n))return 'Prevence';if(/vysledk|testy|odber/.test(n))return 'Výsledky';return medicalSpecialtyFromText(text);}
+  }const speciality=medicalSpecialtyFromText(text);if(speciality&&speciality!=='Očkování')return medicalSpecialtyLabel(speciality);if(/preventiv|prohlidk/.test(n))return 'Prevence';if(/vysledk|testy|odber/.test(n))return 'Výsledky';return speciality;}
   return null
 }
 function stripTiming(t){return t
@@ -807,7 +825,7 @@ function parseMany(text){
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.22</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.23</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -826,7 +844,8 @@ function enhanceClockFields(){
   $$('.clockFieldWrap input[type="time"]').forEach(input=>{
     const display=input.closest('.clockFieldWrap')?.querySelector('.clockFieldDisplay');
     const target=display?.querySelector('[data-clock-value]');
-    if(!display||!target)return;
+    if(!display||!target||input.dataset.clockEnhanced)return;
+    input.dataset.clockEnhanced='1';
     const update=()=>{const v=cleanClockTime(input.value);target.textContent=v||'Vybrat čas';display.classList.toggle('placeholder',!v)};
     input.addEventListener('input',update);input.addEventListener('change',update);update();
   });
@@ -966,7 +985,7 @@ const hiddenCard=hidden.length
   ?`<div class="calm" id="hiddenSummary" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px"><div><strong>${hiddenText} hlídám.</strong>Dnes je řešit nemusíš.</div><div class="right">›</div></div>`
   :`<div class="calm"><strong>Nic dalšího není schované.</strong>Všechno, co D teď hlídá, už vidíš výše.</div>`;
 return `${header()}<div class="eyebrow">${greeting()}</div><h1 class="title">Dnes potřebují tvoji pozornost ${attentionText}.</h1>${overdueBox}${needs.length?`<div class="card">${needs.map((x,i)=>itemHtml(x,i===0&&x.priority==='urgent'?'urgent':x.priority==='soon'?'soon':'')).join('')}</div>`:`<div class="calm"><strong>Dnes nic nehoří.</strong>Můžeš nechat hlavu chvíli vypnutou.</div>`}${shoppingCard}${soon.length?`<div class="section"><div class="sectionHead"><h2>Brzy</h2></div><div class="card">${soon.map(x=>itemHtml(x)).join('')}</div></div>`:''}${wait.length?`<div class="section"><div class="sectionHead"><h2>Čekám na</h2></div><div class="card">${wait.map(x=>itemHtml(x)).join('')}</div></div>`:''}${vouchers.length?`<div class="section"><button type="button" class="voucherSummary voucherSummaryButton" id="voucherSummary" aria-label="Otevřít ${vouchers.length} aktivní poukazy v celkové hodnotě ${value.toLocaleString('cs-CZ')} Kč. ${esc(nearestVoucherText)}"><div class="smallLabel">Aktivní poukazy</div><div class="big">${vouchers.length} · ${value.toLocaleString('cs-CZ')} Kč</div><div class="voucherNearest">${esc(nearestVoucherText)}</div>${nearestVoucher?`<div class="smallLabel">${esc(cardTitle(nearestVoucher))}</div>`:''}<span class="voucherSummaryChevron" aria-hidden="true">›</span></button></div>`:''}${hiddenCard}`}
-function add(){return `${header()}<h1 class="title">Přidat</h1><p class="subtitle">Co nechceš držet v hlavě?</p><div class="addGrid"><button type="button" id="voiceButton" class="action ${voiceInput.active?'voiceListening':''}" aria-pressed="${voiceInput.active?'true':'false'}"><span class="voiceGlyph" style="font-size:24px">🎙️</span><b id="voiceButtonLabel">${voiceInput.active?'Zastavit':'Namluvit'}</b><small id="voiceButtonHint">${voiceInput.active?'poslouchám česky':'hlasové zadání'}</small></button><button type="button" id="writeButton" class="action"><span style="font-size:24px">✍️</span><b>Napsat</b><small>textové zadání</small></button></div><div id="voiceMessage" class="voiceMessage ${voiceInput.active?'listening':voiceInput.warning?'warning':''}" role="status" aria-live="polite">${esc(voiceInput.message||'Nadiktovaný text si před uložením zkontroluj.')}</div><button type="button" id="voiceKeyboardHelp" class="voiceKeyboardHelp">Diktování mikrofonem klávesnice</button><textarea id="newText" aria-label="Text zadání" placeholder="Např. Připomeň mi zavolat dodavateli energie v úterý. Nebo koupit granule pro Andyho.">${esc(state.addText||'')}</textarea><div id="preview">${state.addDraft.length?previewMany(state.addDraft):''}</div><button class="primary" id="saveItem">Uložit</button><div class="smallLabel" style="text-align:center;margin-top:10px">D navrhne zařazení. Před uložením ho můžeš opravit.</div>`}
+function add(){return `${header()}<h1 class="title">Přidat</h1><p class="subtitle">Co nechceš držet v hlavě?</p><div class="addGrid"><button type="button" id="voiceButton" class="action ${voiceInput.active?'voiceListening':''}" aria-pressed="${voiceInput.active?'true':'false'}"><span class="voiceGlyph" style="font-size:24px">🎙️</span><b id="voiceButtonLabel">${voiceInput.active?'Zastavit':'Namluvit'}</b><small id="voiceButtonHint">${voiceInput.active?'poslouchám česky':'hlasové zadání'}</small></button><button type="button" id="writeButton" class="action"><span style="font-size:24px">✍️</span><b>Napsat</b><small>textové zadání</small></button></div><div id="voiceMessage" class="voiceMessage ${voiceInput.active?'listening':voiceInput.warning?'warning':''}" role="status" aria-live="polite">${esc(voiceInput.message||'Nadiktovaný text si před uložením zkontroluj.')}</div><button type="button" id="voiceKeyboardHelp" class="voiceKeyboardHelp">Diktování mikrofonem klávesnice</button><div class="newTextWrap"><textarea id="newText" aria-label="Text zadání" placeholder="Např. Připomeň mi zavolat dodavateli energie v úterý. Nebo koupit granule pro Andyho.">${esc(state.addText||'')}</textarea><button type="button" id="clearNewText" class="newTextClear" aria-label="Vymazat celé zadání" ${state.addText?'':'hidden'}>×</button></div><div id="preview">${state.addDraft.length?previewMany(state.addDraft):''}</div><button class="primary" id="saveItem">Uložit</button><div class="smallLabel" style="text-align:center;margin-top:10px">D navrhne zařazení. Před uložením ho můžeš opravit.</div>`}
 // V aktivnich seznamech je prvni nejblizsi skutecny termin.
 // Interni attention se casto pocita automaticky (napr. 30 dni pred STK);
 // nepletme ho proto s termínem a nepredstirejme, ze nedatovany ukol ma dnesni termin.
@@ -1686,8 +1705,8 @@ function modal(){
       <label>Název<input id="editTitle" value="${esc(displayTitle(x))}"></label>
       <label>Typ<select id="editKind"><option value="todo" ${x.kind==='todo'?'selected':''}>Úkol</option><option value="watch" ${x.kind==='watch'?'selected':''}>Hlídám</option><option value="waiting" ${x.kind==='waiting'?'selected':''}>Čekám</option><option value="shopping" ${x.kind==='shopping'?'selected':''}>Nákup</option><option value="voucher" ${x.kind==='voucher'?'selected':''}>Poukaz</option></select></label>
       <label>Oblast<select id="editArea">${currentHidden?`<option value="${esc(x.area)}" selected disabled>${esc(areaLabel(x.area))} (skrytá – obnov v Moje věci)</option>`:''}${areas.map(a=>`<option value="${a}" ${x.area===a?'selected':''}>${esc(areaLabel(a))}</option>`).join('')}</select></label>
-      <label>Konkrétní osoba / věc (volitelné)<input id="editEntity" value="${esc(x.entity||'')}" placeholder="např. Táta, Audi Q8, Topení"></label>
-      <label>${isMedicalItem(x)&&/očkov/i.test(textOf(x))?'Druh očkování / dávka (volitelné)':'Co hlídám (volitelné)'}<input id="editTopic" value="${esc(x.topic||'')}" placeholder="např. STK, Servis, Pojištění"></label>
+      <label>${isMedicalItem(x)&&medicalSpecialtyFromText(x.raw||x.title)&&!/očkov/i.test(textOf(x))?"Konkrétní lékař / osoba (volitelné)":"Konkrétní osoba / věc (volitelné)"}<input id="editEntity" value="${esc(x.entity||'')}" placeholder="např. Táta, Audi Q8, Topení"></label>
+      <label>${isMedicalItem(x)&&/očkov/i.test(textOf(x))?'Druh očkování / dávka (volitelné)':isMedicalItem(x)&&medicalSpecialtyFromText(x.raw||x.title)?'Specializace / typ vyšetření (volitelné)':'Co hlídám (volitelné)'}<input id="editTopic" value="${esc(x.topic||'')}" placeholder="např. STK, Servis, Pojištění"></label>
       <label id="editDateLabel">${dateLabel}<input id="editDate" type="date" value="${dateForForm}"></label>
       <label id="editReminderLabel" ${x.kind==='shopping'?'class="hidden"':''}>Připomenout (volitelné)<input id="editReminder" type="date" value="${dateInputValue(x.snoozedUntil)}"></label>
       <label id="editSinceRow" ${isWait?'':'class="hidden"'}>Čekám od<input id="editSince" type="date" value="${dateInputValue(x.since)}"></label>
@@ -1837,7 +1856,7 @@ function openCategoryEditor(area){
   }
 }
 function bind(){enhanceDateFields();enhanceClockFields();
-  $$('input:not([type="date"]):not([type="number"]):not([type="checkbox"]),textarea').forEach(el=>{if(el.id==='newText')return;el.addEventListener('focus',()=>{if(el.value&&typeof el.select==='function')requestAnimationFrame(()=>{if(document.activeElement===el)el.select()})},{once:true})});
+  $$('input:not([type="date"]):not([type="number"]):not([type="checkbox"]):not([type="time"]),textarea').forEach(el=>{el.addEventListener('focus',()=>{if(el.value&&typeof el.select==='function')requestAnimationFrame(()=>{if(document.activeElement===el)el.select()})},{once:true})});
   $$('[data-tab]').forEach(b=>b.onclick=()=>{if(b.dataset.tab!=='add')haltVoiceOnNavigation();if(b.dataset.tab==='add'&&state.tab!=='add'){state.addText='';state.addDraft=[];}state.tab=b.dataset.tab;state.detail=null;state.voucherListReturn=false;state.historyFor=null;state.openArea=null;state.categoryHistoryOpen=false;state.categoryHistoryQuery='';state.categoryHistoryNotesOnly=false;state.categoryHistoryLimit=25;state.categoryHistoryShowOld=false;state.categoryHistoryMonths=6;state.historyMonthLimits={};state.historyDateEdit=false;state.deleteOneFor=null;state.editing=null;state.manageMode=false;state.selectedIds=[];state.manageOpenAreas=[];state.manageHiddenOpen=false;state.manageAdvancedOpen=false;state.confirmDelete=null;state.deferFor=null;state.deferCustom=false;state.rescheduleFor=null;state.followup=null;state.followupCustom=false;state.followupMode=null;state.hiddenCategoriesOpen=false;state.categoryMenuFor=null;state.categorySelectMode=false;state.selectedCategories=[];state.categoryDeleteConfirm=null;render()});$$('[data-id]').forEach(e=>e.onclick=()=>{state.detail=e.dataset.id;state.voucherListReturn=false;render()});
 $$('[data-area]').forEach(el=>el.onclick=e=>{
   if(e.target.closest('[data-category-menu]')||Date.now()<categoryDragIgnoreClicksUntil)return;
@@ -1924,6 +1943,7 @@ const voiceButton=$('#voiceButton');if(voiceButton)voiceButton.onclick=()=>begin
 const writeButton=$('#writeButton');if(writeButton)writeButton.onclick=()=>{if(voiceInput.active||voiceInput.starting)haltVoiceOnNavigation();voiceStatus('Napiš zadání a zkontroluj náhled.');const ta=$('#newText');if(ta)ta.focus()};
 const voiceKeyboardHelp=$('#voiceKeyboardHelp');if(voiceKeyboardHelp)voiceKeyboardHelp.onclick=()=>{if(voiceInput.active||voiceInput.starting)haltVoiceOnNavigation();focusVoiceKeyboard()};
 const ta=$('#newText');if(ta){ta.oninput=()=>{if(voiceInput.active||voiceInput.starting)haltVoiceOnNavigation();updateAddDraftFromInput(ta.value)};bindPreviewDraft()}
+const clearNewText=$('#clearNewText');if(clearNewText)clearNewText.onclick=()=>{if(voiceInput.active||voiceInput.starting)haltVoiceOnNavigation();updateAddDraftFromInput('');const t=$('#newText');if(t)t.focus()};
 const saveB=$('#saveItem');if(saveB)saveB.onclick=()=>{if(voiceInput.active||voiceInput.starting)haltVoiceOnNavigation();const t=state.addText.trim();if(!t)return toast('Napiš nejdřív jednu nebo více věcí.');const xs=state.addDraft.length?state.addDraft:parseMany(t);if(!xs.length)return toast('Nenašel jsem nic k uložení.');xs.forEach(x=>{learnAreaChoice(x.raw||x.title,x.area,x._originalArea);rememberPeople(x.raw||x.title,x.area,x.area!==x._originalArea);rememberVehicleFromDraft(x);delete x._vehicleGuess;delete x._originalArea});state.items.unshift(...xs);save();state.addText='';state.addDraft=[];state.tab='today';toast(xs.length===1?'Mám to.':'Mám '+xs.length+' věcí.');}
 const search=$('#search');if(search)search.oninput=()=>{const q=search.value.toLowerCase();$$('#list .item').forEach(el=>el.style.display=el.textContent.toLowerCase().includes(q)?'flex':'none')};
 const callReached=$('#callReached');if(callReached)callReached.onclick=()=>{const x=state.items.find(i=>i.id===state.callResultFor);state.callResultFor=null;if(x)completeItem(x)};
@@ -2102,13 +2122,13 @@ function previewItemEditor(x,i){
   return `<div class="previewItem">
     <div class="value">${x.icon} ${esc(x.title)}</div>
     <div class="previewQuickRow"><span>${esc(labelKind(x.kind))}</span><select class="previewArea" data-preview-area="${i}" aria-label="Oblast">${previewAreaOptions(x)}</select></div>
-    ${x.due?`<div class="smallLabel">Termín: ${fmt(x.due)}${x.daypart?' · '+esc(x.daypart):''}</div>`:''}${x.expires?`<div class="smallLabel">Platnost: ${fmt(x.expires)}</div>`:''}${x.value?`<div class="smallLabel">Hodnota: ${x.value.toLocaleString('cs-CZ')} Kč</div>`:''}${extraDate}${vehicleUncertain}
+    ${x.due?`<div class="smallLabel">Termín: ${fmt(x.due)}${x.daypart?' · '+esc(x.daypart):''}</div>`:''}<div class="smallLabel previewClockSummary" data-preview-time-summary="${i}" ${x.appointmentTime?'':'hidden'}>${x.appointmentTime?'Čas: '+esc(cleanClockTime(x.appointmentTime)):''}</div>${x.expires?`<div class="smallLabel">Platnost: ${fmt(x.expires)}</div>`:''}${x.value?`<div class="smallLabel">Hodnota: ${x.value.toLocaleString('cs-CZ')} Kč</div>`:''}${extraDate}${vehicleUncertain}
     <details class="previewDetails" ${vehicleUncertain?'open':''}><summary>${vehicleUncertain?'Zkontrolovat / opravit rozpoznání ›':'Upravit podrobnosti ›'}</summary><div class="previewEditGrid">
       <label>Název<input data-preview-title="${i}" value="${esc(x.title)}"></label>
-      <label>Konkrétně / osoba / objekt<input data-preview-entity="${i}" value="${esc(x.entity||'')}" placeholder="např. Audi Q8, Táta, Novák"></label>
-      <label>Co hlídám / typ věci<input data-preview-topic="${i}" value="${esc(x.topic||'')}" placeholder="např. STK, Servis, Schůzka"></label>
+      <label>${isMedicalItem(x)&&medicalSpecialtyFromText(x.raw||x.title)&&!(/očkov|ockov/i.test(textOf(x)))?"Konkrétní lékař / osoba (volitelné)":"Konkrétně / osoba / objekt"}<input data-preview-entity="${i}" value="${esc(x.entity||'')}" placeholder="např. Audi Q8, Táta, Novák"></label>
+      <label>${esc(medicalTopicLabel(x))}<input data-preview-topic="${i}" value="${esc(x.topic||'')}" placeholder="např. STK, Servis, Schůzka"></label>
       <label>Poznámky (volitelné)<textarea data-preview-notes="${i}" rows="2" placeholder="Co si chceš pamatovat?">${esc(x.notes||'')}</textarea></label>
-      <label>${dateLabel}<input data-preview-date="${i}" type="date" value="${previewDateValue(x)}"></label><label>Část dne<select data-preview-daypart="${i}"><option value="" ${!x.daypart?'selected':''}>Bez určení</option>${['ráno','dopoledne','odpoledne','večer','v noci'].map(d=>`<option value="${d}" ${x.daypart===d?'selected':''}>${d}</option>`).join('')}</select></label>
+      <label>${dateLabel}<input data-preview-date="${i}" type="date" value="${previewDateValue(x)}"></label><label>Přesný čas (volitelné)${clockInputHtml(`previewClock${i}`,x.appointmentTime||"","Přesný čas")}</label><label>Část dne<select data-preview-daypart="${i}"><option value="" ${!x.daypart?'selected':''}>Bez určení</option>${['ráno','dopoledne','odpoledne','večer','v noci'].map(d=>`<option value="${d}" ${x.daypart===d?'selected':''}>${d}</option>`).join('')}</select></label>
     </div></details>
   </div>`
 }
@@ -2149,10 +2169,17 @@ function bindPreviewDraft(){
   $$('[data-preview-notes]').forEach(el=>el.oninput=()=>{const x=state.addDraft[+el.dataset.previewNotes];if(x)x.notes=el.value});
   $$('[data-preview-date]').forEach(el=>el.onchange=()=>{const x=state.addDraft[+el.dataset.previewDate];if(!x)return;applyPreviewDate(x,el.value)});
   $$('[data-preview-daypart]').forEach(el=>el.onchange=()=>{const x=state.addDraft[+el.dataset.previewDaypart];if(x)x.daypart=el.value||null});
+  $$('[id^="previewClock"]').forEach(el=>el.onchange=()=>{
+    const i=Number(el.id.slice('previewClock'.length)),x=state.addDraft[i];if(!x)return;
+    x.appointmentTime=cleanClockTime(el.value)||null;
+    const summary=document.querySelector(`[data-preview-time-summary="${i}"]`);
+    if(summary){summary.textContent=x.appointmentTime?'Čas: '+x.appointmentTime:'';summary.hidden=!x.appointmentTime;}
+  });
+  enhanceClockFields();
   enhanceDateFields(document.querySelector('#preview')||document);
 }
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.4.21';
+const APP_VERSION='0.4.23';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
