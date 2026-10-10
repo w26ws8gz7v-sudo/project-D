@@ -106,6 +106,8 @@ body.categoryDragActive .tile{cursor:grabbing}
 .historyActualRow{padding:11px 13px;border:1px solid #e0eae5;border-radius:14px;margin-top:12px;background:#f7fbf9;font-size:13px;line-height:1.5}
 .historyActualRow button{margin-top:9px;background:white;border:1px solid #cee6dc;color:#147754;padding:10px 12px;border-radius:12px;width:100%;font-weight:800}
 .historyHint{color:#64748b;font-size:12px;margin-top:7px;line-height:1.45}
+.historySearchWrap{position:relative}.historySearchWrap .historyFind{padding-right:48px}.historyClear{position:absolute;right:7px;top:4px;border:0;border-radius:10px;background:#eff5f2;color:#47685b;font-size:22px;font-weight:700;width:37px;height:39px;cursor:pointer}.historyClear[hidden]{display:none}
+.noteDetail{border:1px solid #e0eae5;border-radius:14px;background:#f7fbf9;padding:12px 14px;margin:10px 0;white-space:pre-wrap;font-size:14px;line-height:1.55}.noteDetail p{margin:6px 0 0}.historyEventNotes{white-space:pre-wrap;color:#245e4b;margin-top:6px;font-size:13px;line-height:1.45}.editForm textarea,.previewEditGrid textarea{width:100%;min-height:88px;border:1px solid #dfe5e8;border-radius:14px;padding:12px;font:inherit;resize:vertical;background:white;color:#142033}input[type=date]{min-height:49px;color:#142033;background:#fff;appearance:auto;-webkit-appearance:auto}input[type=date]:invalid{color:#64748b}#editServiceFields{display:grid;gap:12px}
 </style>
 </head>
 <body>
@@ -124,9 +126,17 @@ function vehicleTopicFromText(text){const l=String(text||'').toLowerCase();
   if(/emis/.test(l))return'Emise';
   return null
 }
-function vehicleEntityFromText(text){const t=String(text||'');const l=t.toLowerCase();
-  const branded=t.match(/\b(Audi|BMW|Mercedes(?:-Benz)?|Škoda|Skoda|Volkswagen|VW|Volvo|MAN|Ford|Toyota|Honda|Yamaha|Kia|Hyundai|Peugeot|Renault|Citroën|Citroen|Opel|Tesla)\s+([A-Za-z0-9-]+)/i);
-  if(branded)return `${branded[1]} ${branded[2]}`;
+function vehicleEntityFromText(text){
+  const t=String(text||'').replace(/\b\d{1,2}\s*\.\s*\d{1,2}\s*\.\s*\d{4}\b/g,' ');
+  const l=t.toLowerCase();
+  const brand=t.match(/(?:^|[\s(])((?:Audi|BMW|Mercedes(?:-Benz)?|Škoda|Skoda|Volkswagen|VW|Volvo|MAN|Ford|Toyota|Honda|Yamaha|Kia|Hyundai|Peugeot|Renault|Citroën|Citroen|Opel|Tesla))(?=\s|$|[,.!?])/i);
+  if(brand){
+    const after=t.slice(brand.index+brand[0].length).trim();
+    const next=after.match(/^([\p{L}0-9][\p{L}0-9-]*)/u);
+    const model=next&&!/^(?:auto|auta|vozidlo|vůz|vuz|je|platí|do|termín|servis|stk|pojištění|kontrola|roku|dnes)$/i.test(next[1])?next[1]:'';
+    const name=brand[1].toLowerCase()==='skoda'?'Škoda':brand[1];
+    return name+(model?' '+model:'');
+  }
   if(/pracovn(?:í|ího|ímu|ím)\s+(?:auto|auta|vůz|vuz|vozu|vozidlo|vozidla)|služebn(?:í|ího|ímu|ím)\s+(?:auto|auta|vůz|vuz|vozu|vozidlo|vozidla)|firemn(?:í|ího|ímu|ím)\s+(?:auto|auta|vůz|vuz|vozu|vozidlo|vozidla)/.test(l))return'Pracovní auto';
   if(/motork|motocykl/.test(l))return'Motorka';
   if(/skútr|skutr/.test(l))return'Skútr';
@@ -136,7 +146,7 @@ function vehicleEntityFromText(text){const t=String(text||'');const l=t.toLowerC
   if(/návěs|naves/.test(l))return'Návěs';
   if(/traktor/.test(l))return'Traktor';
   if(/\bauto\b|\bauta\b|automobil|\bvůz\b|\bvuz\b|\bvozu\b|vozidlo|vozidla/.test(l))return'Auto';
-  return null
+  return null;
 }
 
 const BUILTIN_AREAS=['Já','Rodina','Ben','Vozidla','Zdraví','Dům','Smlouvy','Práce','Finance','Domácnost','Zahrada','Poukazy'];
@@ -294,7 +304,8 @@ function normalizeItem(x){
     else x.entity=x.entity||vehicleEntityFromText(text)||'Auto';
     x.topic=x.topic||vehicleTopicFromText(text);
   }else if(x.area==='Vozidla'){
-    x.entity=x.entity||vehicleEntityFromText(text)||'Vozidlo';
+    const detected=vehicleEntityFromText(text);
+    if(!x.entity||x.entity==='Vozidlo'||(x.entity==='Auto'&&detected&&detected!=='Auto')||(/^[A-Za-z]+ \d{1,2}$/.test(x.entity)&&x.raw&&/\b\d{1,2}\.\s*\d{1,2}\./.test(x.raw)))x.entity=detected||x.entity||'Vozidlo';
     x.topic=x.topic||vehicleTopicFromText(text);
   }
   x.icon=iconFor(x.kind,x.area);
@@ -388,7 +399,7 @@ function beginVoiceInput(){
   }catch(e){haltVoiceOnNavigation();focusVoiceKeyboard('Přímé rozpoznávání se nespustilo. Použij mikrofon na klávesnici telefonu.')}
 }
 
-const state={tab:'today',items:normalizeItems(loadLocal()),detail:null,historyFor:null,openArea:null,categoryHistoryOpen:false,categoryHistoryQuery:'',categoryHistoryLimit:25,categoryHistoryShowOld:false,categoryHistoryMonths:6,historyMonthLimits:{},historyDateEdit:false,deleteOneFor:null,toast:null,undo:null,editing:null,manageMode:false,selectedIds:[],manageOpenAreas:[],manageHiddenOpen:false,manageAdvancedOpen:false,confirmDelete:null,voucherListReturn:false,deferFor:null,deferCustom:false,rescheduleFor:null,followup:null,followupCustom:false,followupMode:null,addText:'',addDraft:[],categoryEditor:null,categoryColor:CATEGORY_COLORS[0],hiddenCategoriesOpen:false,categoryMenuFor:null,categorySelectMode:false,selectedCategories:[],categoryDeleteConfirm:null};
+const state={tab:'today',items:normalizeItems(loadLocal()),detail:null,historyFor:null,openArea:null,categoryHistoryOpen:false,categoryHistoryQuery:'',categoryHistoryLimit:25,categoryHistoryShowOld:false,categoryHistoryMonths:6,historyMonthLimits:{},historyDateEdit:false,historyNotesEdit:false,deleteOneFor:null,toast:null,undo:null,editing:null,manageMode:false,selectedIds:[],manageOpenAreas:[],manageHiddenOpen:false,manageAdvancedOpen:false,confirmDelete:null,voucherListReturn:false,deferFor:null,deferCustom:false,rescheduleFor:null,followup:null,followupCustom:false,followupMode:null,addText:'',addDraft:[],categoryEditor:null,categoryColor:CATEGORY_COLORS[0],hiddenCategoriesOpen:false,categoryMenuFor:null,categorySelectMode:false,selectedCategories:[],categoryDeleteConfirm:null};
 let undoTimer=null;
 const DB_NAME='projectD-db-v1', DB_STORE='kv', DB_KEY='items';
 function openDB(){return new Promise((resolve,reject)=>{try{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{const db=r.result;if(!db.objectStoreNames.contains(DB_STORE))db.createObjectStore(DB_STORE)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)}catch(e){reject(e)}})}
@@ -592,6 +603,7 @@ function reminderInstruction(text){
 function parse(text){const instr=reminderInstruction(text),l=instr.toLowerCase();let kind='todo',area=detectArea(instr),icon='📝',attention=null,due=null,since=null,value=null,expires=null,periodLabel=null;let entity=detectEntity(instr,area),topic=detectTopic(instr,area);const ti=temporalInfo(text);
 if(/čekám|až mi|až se ozve|odpověď|ozvou\s+se/.test(l)){kind='waiting';since=new Date().toISOString();due=ti.exact&&ti.date?ti.date.toISOString():null;attention=ti.date?ti.date.toISOString():new Date(Date.now()+5*dayMs).toISOString()}
 else if(/poukaz|voucher|dárkov(á|y) karta|kredit/.test(l)){kind='voucher';area='Poukazy';value=money(text);expires=ti.date?ti.date.toISOString():null;periodLabel=ti.periodLabel;if(expires){attention=new Date(new Date(expires).getTime()-30*dayMs).toISOString()}}
+else if(/(?:koupit|pořídit|zakoupit)\b/.test(l)&&/(dálniční\s+známk|dalnicni\s+znamk|pračk|myčk|televiz|notebook|mobil|telefon|lednic|sušič|spotřebič|robot|nářad|\bkolo\b|vysavač|počítač)/i.test(l)){kind='todo';if(area==='Já'&&/(pračk|myčk|lednic|sušič|spotřebič|vysavač)/.test(l))area='Domácnost';if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString()}
 else if(/mouka|mléko|granul|tablety do myčky|toalet|\bkoupit\b|\bdokoupit\b|došla|dochází|poslední|\bjar\b|rohlík|banán/.test(l)){kind='shopping';if(area==='Já')area='Domácnost';attention=null;due=ti.exact&&ti.date?ti.date.toISOString():null;periodLabel=ti.periodLabel}
 else if(area==='Smlouvy'&&/^\s*(?:zaplatit|uhradit)/i.test(stripTiming(instr))){kind='todo';if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString()}
 else if(actionableInstruction(instr)){kind='todo';if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString()}
@@ -632,7 +644,7 @@ function parseMany(text){
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.18</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.19</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -668,7 +680,7 @@ function nearestVoucherExpiry(vouchers){
 }
 function itemMeta(x){const path=areaPath(x);const snooze=x.snoozedUntil?` · připomenu ${shortDate(x.snoozedUntil)}`:'';const att=x.attention?new Date(x.attention):null,now=today0();const due=x.due?new Date(x.due):null;const lateBase=due&&!Number.isNaN(due.getTime())?due:att;const lateDays=lateBase&&lateBase<now?Math.max(1,Math.ceil((now-lateBase)/dayMs)):0;const late=x.kind==='waiting'?(lateDays?` · čeká ${lateDays===1?'od včerejška':lateDays+' dní'}`:''):(lateDays?` · po termínu ${lateDays} ${lateDays===1?'den':lateDays>=2&&lateDays<=4?'dny':'dní'}`:'');const daypart=itemDaypart(x)?' · '+itemDaypart(x):'';
   if(x.kind==='shopping')return `Nákup · ${path}`;
-  if(x.kind==='waiting'&&x.since)return `Čekám ${Math.max(0,daysBetween(new Date(),x.since))} dní · ${path}${snooze||(x.due?' · do '+shortDate(x.due):'')}${late}`;
+  if(x.kind==='waiting'&&x.since)return `Čekám ${czechCountDays(Math.max(0,daysBetween(new Date(),x.since)))} · ${path}${snooze||(x.due?' · do '+shortDate(x.due):'')}${late}`;
   if(x.kind==='voucher')return `Poukaz${x.expires?' · do '+shortDate(x.expires):''}${x.value?' · '+x.value.toLocaleString('cs-CZ')+' Kč':''}${voucherExpiryStatus(x)}${snooze}`;
   if(x.kind==='watch')return `Hlídám · ${path}${snooze||(x.due?' · '+shortDate(x.due):x.periodLabel?' · '+x.periodLabel:'')}${daypart}${late}`;
   if(x.kind==='todo')return `Úkol · ${path}${snooze||(x.due?' · '+shortDate(x.due):x.periodLabel?' · '+x.periodLabel:'')}${daypart}${late}`;
@@ -809,7 +821,7 @@ function historyMonthName(key){
 function historyBodyHtml(archived){
   const q=normalizedText(state.categoryHistoryQuery.trim());
   if(q){
-    const matches=archived.filter(x=>normalizedText([displayTitle(x),x.raw||'',x.entity||'',x.topic||'',x.kind||''].join(' ')).includes(q));
+    const matches=archived.filter(x=>normalizedText([displayTitle(x),x.raw||'',x.entity||'',x.topic||'',x.kind||'',x.notes||''].join(' ')).includes(q));
     const limited=matches.slice(0,state.categoryHistoryLimit);
     return `<div class="historyPaneNote">Nalezeno ${matches.length} ${matches.length===1?'záznam':matches.length<5?'záznamy':'záznamů'}</div>${limited.length?limited.map(historyItemHtml).join(''):'<div class="historyPaneNote">Nic jsem nenašel. Zkus jiné slovo nebo jméno.</div>'}${matches.length>limited.length?`<button type="button" class="historyArchiveLink" data-history-more="1">Zobrazit dalších ${Math.min(25,matches.length-limited.length)} ↓</button>`:''}`;
   }
@@ -833,7 +845,7 @@ function categoryView(area){
   const active=state.items.filter(x=>x.status==='active'&&x.area===area);
   const archived=categoryArchivedItems(area);
   const label=areaLabel(area);
-  const archivedSection=archived.length?`<div class="categoryArchive"><button type="button" id="categoryArchiveToggle" class="categoryArchiveToggle" aria-expanded="${state.categoryHistoryOpen?'true':'false'}"><span>↺ Historie (${archived.length})</span><span>${state.categoryHistoryOpen?'⌃':'⌄'}</span></button>${state.categoryHistoryOpen?`<section class="historyPane" id="categoryHistoryPane"><label for="categoryHistorySearch" style="font-size:13px;font-weight:750;color:#536679">Najít v historii</label><input id="categoryHistorySearch" class="historyFind" type="search" autocomplete="off" placeholder="Např. Andy, stříhání, STK…" value="${esc(state.categoryHistoryQuery)}"><div id="categoryHistoryDynamic">${historyBodyHtml(archived)}</div></section>`:''}</div>`:'';
+  const archivedSection=archived.length?`<div class="categoryArchive"><button type="button" id="categoryArchiveToggle" class="categoryArchiveToggle" aria-expanded="${state.categoryHistoryOpen?'true':'false'}"><span>↺ Historie (${archived.length})</span><span>${state.categoryHistoryOpen?'⌃':'⌄'}</span></button>${state.categoryHistoryOpen?`<section class="historyPane" id="categoryHistoryPane"><label for="categoryHistorySearch" style="font-size:13px;font-weight:750;color:#536679">Najít v historii</label><div class="historySearchWrap"><input id="categoryHistorySearch" class="historyFind" type="search" autocomplete="off" placeholder="Např. Andy, stříhání, STK…" value="${esc(state.categoryHistoryQuery)}"><button type="button" id="clearHistorySearch" class="historyClear" aria-label="Vymazat hledání" ${state.categoryHistoryQuery?'':'hidden'}>×</button></div><div id="categoryHistoryDynamic">${historyBodyHtml(archived)}</div></section>`:''}</div>`:'';
   return `${header()}<button type="button" class="secondary" id="backThings">← Zpět</button><h1 class="title" style="margin-top:18px">${esc(label)}</h1>${active.length?`<div class="card">${active.map(x=>itemHtml(x)).join('')}</div>`:`<div class="empty">Žádné aktivní věci.</div>`}${archivedSection}`;
 }
 function things(){
@@ -933,6 +945,30 @@ function recurrenceSuggestion(x){
   return{type:'learned_recurrence',title:'Vypadá to na pravidelný rytmus',text:`Podle ${dates.length} dokončených záznamů se to opakuje ${formatCadence(med)}. Chceš, aby to D příště pohlídalo?`,intervalDays:Math.max(1,Math.round(med))};
 }
 
+// Společná logika podle činnosti; oblast je jen další souvislost.
+function taskIntent(x){
+  const t=normalizedText(textOf(x));
+  if(/\b(?:koupit|dokoupit|zakoupit|poridit|nakoupit|objednat\s+zbozi)\b/.test(t))return'purchase';
+  if(/\b(?:zaplatit|uhradit|platba|splatka)\b/.test(t))return'payment';
+  if(/\b(?:prezout|prezuti|pneumatiky)\b/.test(t))return'tires';
+  if(/\b(?:dalnicni znamka)\b/.test(t))return'vignette';
+  if(/\b(?:servis|oprava|vymena oleje|udrzba)\b/.test(t))return'service';
+  if(/\b(?:zkontrolovat|overit|proverit)\b/.test(t))return'check';
+  return'general';
+}
+function purchaseDurable(x){return /pračk|myčk|televiz|notebook|mobil|telefon|lednic|sušič|pračk|spotřebič|robot|nářad|kolo|vysavač|počítač|počítač/i.test(textOf(x))}
+function purchaseVignette(x){return /dálniční\s+známk|dalnicni\s+znamk/i.test(textOf(x))}
+function czechCountDays(n){return n===1?'1 den':`${n} ${n>=2&&n<=4?'dny':'dní'}`}
+function nextSeason(name){
+  const now=today0(),month=name==='jaro'?2:8;
+  let year=now.getFullYear();
+  if(now.getMonth()>=month)year++;
+  return {date:new Date(year,month,1,12),label:`${name} ${year}`};
+}
+function renewalTitle(x,what){
+  const base=displayTitle(x).replace(/^(?:Koupit|Zakoupit|Pořídit|Dokoupit)\s+/i,'').trim();
+  return `${what} – ${base||displayTitle(x)}`;
+}
 function actionProfile(x){
   const l=textOf(x);
   if(x.kind==='shopping')return{primary:null,secondary:null};
@@ -948,6 +984,7 @@ function actionProfile(x){
   }
   if(x.kind==='voucher')return{primary:'Použito',secondary:'Připomenout později',secondaryMode:'defer'};
   if(x.kind==='watch'){
+    if(taskIntent(x)==='service')return{primary:'Hotovo',secondary:'Změnit termín',secondaryMode:'reschedule'};
     const learned=recurrenceSuggestion(x);if(learned)return learned;
   if(x.area==='Ben'&&/stříh/.test(l))return{primary:'Ostříháno',secondary:'Připomenout později',secondaryMode:'defer'};
   if(x.area==='Ben'&&/očkov/.test(l))return{primary:'Očkováno',secondary:'Změnit termín',secondaryMode:'reschedule'};
@@ -960,6 +997,7 @@ function actionProfile(x){
     return{primary:'Vyřešeno',secondary:'Připomenout později',secondaryMode:'defer'};
   }
   if(x.kind==='todo'){
+    if(taskIntent(x)==='purchase')return{primary:'Koupeno',secondary:'Odložit',secondaryMode:'defer'};
     if(/zavolat|telefon/.test(l))return{primary:'Zavoláno',secondary:'Odložit',secondaryMode:'defer'};
     if(/zaplatit|uhradit/.test(l))return{primary:'Zaplaceno',secondary:'Odložit',secondaryMode:'defer'};
     if(/zkontrolovat/.test(l))return{primary:'Zkontrolováno',secondary:'Odložit',secondaryMode:'defer'};
@@ -987,6 +1025,15 @@ function followupProfile(x){
   if(/(?:^|\s)(?:zavolat|volat|telefonovat)(?=\s|$)/i.test(l))return{
     type:'call_outcome',title:'Co z hovoru vzniklo?',
     text:'Můžeš založit další telefonát, schůzku, čekání na odpověď či nový krok.'};
+  if(x.kind==='todo'&&taskIntent(x)==='purchase')return{
+    type:'purchase_next',title:purchaseVignette(x)?'Do kdy nová známka platí?':'Nákup dokončen. Co dál?',
+    text:purchaseVignette(x)?'Ulož skutečný konec platnosti, pokud ho znáš. Datum nákupu není konec platnosti.':'Můžeš uložit záruku nebo připomenout další nákup. Jinak nákup uzavři.'};
+  if(x.kind==='todo'&&taskIntent(x)==='payment')return{
+    type:'payment_next',title:'Kdy má být další platba?',text:'Interval vyber podle smlouvy. D ho samo neodhaduje.'};
+  if(x.kind==='todo'&&taskIntent(x)==='tires')return{
+    type:'tires_next',title:'Chceš připomenout další přezutí?',text:'Jaro nebo podzim uložíme jako období, ne jako vymyšlený přesný den přezutí.'};
+  if((x.kind==='watch'||x.kind==='todo')&&taskIntent(x)==='service')return{
+    type:'service_next',title:'Co dál po servisu?',text:'Můžeš uložit servisní poznámky do historie nebo pohlídat další údržbu.'};
   // Administrativní činnost sama o sobě neznamená absolvovanou prohlídku, revizi ani obnovení smlouvy.
   if(x.kind==='todo'&&/^(?:zapsat|poznamenat|poslat|napsat|zaplatit|uhradit|vypovědět|připravit|vyřídit)(?=\s|$)/i.test(l))return{
     type:'generic_outcome',title:'Vzniklo z toho něco dalšího?',
@@ -1038,7 +1085,7 @@ function createFollowup(x,date,opts={}){
     id:uid(),title,manualTitle:title,raw:`Návaznost na: ${displayTitle(x)}`,kind,area,entity:opts.entity||x.entity||null,topic:opts.topic||x.topic||null,
     icon:iconFor(kind,area),status:'active',created:new Date().toISOString(),
     attention:opts.attention||(kind==='todo'?dateIso:attentionForFollowup({area},dateIso,opts.mode)),due,
-    since:opts.since||null,value:null,expires:null,periodLabel:null,daypart:opts.daypart??daypartFromText(title),
+    since:opts.since||null,value:null,expires:null,validFrom:opts.validFrom||null,periodLabel:opts.periodLabel||null,daypart:opts.daypart??daypartFromText(title),
     parentId:x.id,chainId:x.chainId||x.id,origin:'followup',
     workflow:opts.workflow===undefined?(x.workflow||null):opts.workflow,appointmentStage:opts.appointmentStage||null
   };
@@ -1114,25 +1161,30 @@ function followupMeetingTitle(x){
   }
   if(x.area===PET_AREA&&/stříh/.test(l))return name?`Stříhání – ${name}`:'Stříhání mazlíčka';
   if(/zubař|ordinac/.test(l))return'Návštěva u zubaře';
+  if(/servis|autoservis/.test(l))return'Návštěva autoservisu';
+  if(/veterin/.test(l))return'Návštěva veterináře';
   return'Schůzka / termín';
 }
 function followupModal(){
   if(!state.followup)return'';
   const x=state.items.find(i=>i.id===state.followup.sourceId);if(!x){state.followup=null;return''}
   const f=state.followup;
-  if(state.followupMode&&state.followupMode!=='booking_reminder'&&state.followupMode!=='booking_reminder_custom'){
+  if(state.followupMode&&!['booking_reminder','booking_reminder_custom','service_log','expiry','warranty'].includes(state.followupMode)){
     const mode=state.followupMode;
     const cfg={
       repeat:{title:'Kdy to připomenout znovu?',label:'Název',date:'Kdy?',defaultTitle:displayTitle(x)},
       meeting:{title:'Na kdy jste se domluvili?',label:'Co je domluveno?',date:'Kdy?',defaultTitle:followupMeetingTitle(x)},
-      waiting:{title:'Na co teď čekáš?',label:'Co nebo kdo se má ozvat?',date:'Kdy to znovu zkontrolovat?',defaultTitle:'Čekám na odpověď'},
+      waiting:{title:'Na co teď čekáš?',label:'Co nebo kdo se má ozvat?',date:'Kdy to znovu zkontrolovat?',defaultTitle:taskIntent(x)==='service'?'Čekám na termín servisu':'Čekám na odpověď'},
       task:{title:'Jaký je další krok?',label:'Co je potřeba udělat?',date:'Kdy se k tomu vrátit?',defaultTitle:'Další krok'}
     }[mode];
     return `<div class="modal" id="modal"><div class="sheet"><h2>${esc(cfg.title)}</h2><div class="meta">Navazuje na: ${esc(displayTitle(x))}</div><div class="editForm"><label>${esc(cfg.label)}<input id="genericFollowTitle" value="${esc(cfg.defaultTitle)}"></label><label>${esc(cfg.date)}<input id="genericFollowDate" type="date"></label></div><div class="sheetActions"><button id="cancelGenericFollow">Zpět</button><button id="saveGenericFollow" class="green">Vytvořit návaznost</button></div></div></div>`;
   }
   if(state.followupCustom){
-    const helper=state.followupMode==='booking_reminder_custom'?'Zadej datum připomenutí k objednání.':f.type==='appointment_book'?'Vyber datum, na které ses právě objednal.':f.type==='appointment_next'?'Vyber další domluvený termín.':f.type==='vaccination_next'?'Zadej skutečný termín podle veterináře.':'Vyber konkrétní datum návaznosti.';
-    return `<div class="modal" id="modal"><div class="sheet"><h2>${esc(f.title)}</h2><div class="meta">${esc(helper)}</div><div class="dateChoice"><input type="date" id="followupDate"><button class="green" id="saveFollowupDate">Uložit datum</button><button class="secondary" id="cancelFollowupDate">Zpět</button></div></div></div>`;
+    const helper=state.followupMode==='expiry'?'Vyber skutečné datum konce platnosti.':state.followupMode==='warranty'?'Vyber datum konce záruky.':state.followupMode==='booking_reminder_custom'?'Zadej datum připomenutí k objednání.':f.type==='appointment_book'?'Vyber datum, na které ses právě objednal.':f.type==='appointment_next'?'Vyber další domluvený termín.':f.type==='vaccination_next'?'Zadej skutečný termín podle veterináře.':'Vyber konkrétní datum návaznosti.';
+    return `<div class="modal" id="modal"><div class="sheet"><h2>${esc(f.title)}</h2><div class="meta">${esc(helper)}</div><div class="dateChoice">${state.followupMode==='expiry'?'<label>Platí od (volitelné)<input type="date" id="validityStart"></label>':''}<label>${state.followupMode==='expiry'?'Platí do':'Datum návaznosti'}<input type="date" id="followupDate"></label><button class="green" id="saveFollowupDate">Uložit datum</button><button class="secondary" id="cancelFollowupDate">Zpět</button></div></div></div>`;
+  }
+  if(state.followupMode==='service_log'){
+    return `<div class="modal" id="modal"><div class="sheet"><h2>Zápis o provedeném servisu</h2><div class="meta">Zápis zůstane u dokončené věci v historii, nevytvoří nový úkol.</div><div class="editForm"><label>Co se udělalo?<textarea id="serviceLogNotes" rows="4" placeholder="Výměna oleje, filtrů…">${esc(x.notes||'')}</textarea></label><label>Stav kilometrů (volitelné)<input type="number" id="serviceLogMileage" min="0" value="${esc(x.serviceMileage??'')}"></label><label>Cena (Kč, volitelné)<input type="number" id="serviceLogCost" min="0" value="${esc(x.serviceCost??'')}"></label></div><div class="sheetActions"><button id="cancelServiceLog">Zpět</button><button id="saveServiceLog" class="green">Uložit do historie</button></div></div></div>`;
   }
   if(state.followupMode==='booking_reminder'){
     return `<div class="modal" id="modal"><div class="sheet"><h2>Kdy připomenout objednání?</h2><div class="meta">Založím úkol k objednání, ne domluvenou návštěvu.</div><div class="choiceGrid"><button data-book-months="1">Za měsíc</button><button data-book-months="2" class="recommended">Za 2 měsíce</button><button data-book-months="3">Za 3 měsíce</button><button data-book-custom="1">Vybrat datum</button><button data-book-back="1" class="full">Zpět</button></div></div></div>`;
@@ -1142,6 +1194,15 @@ function followupModal(){
     choices=`<button data-fu-mode="repeat">Zavolat znovu</button><button data-fu-mode="meeting">Domluvili jsme schůzku</button><button data-fu-mode="waiting">Čekám na odpověď</button><button data-fu-mode="task">Jiný další krok</button>`;
   }else if(f.type==='generic_outcome'){
     choices=`<button data-fu-mode="repeat">Připomenout znovu</button><button data-fu-mode="meeting">Vznikl termín / schůzka</button><button data-fu-mode="waiting">Čekám na někoho</button><button data-fu-mode="task">Jiný další krok</button>`;
+  }else if(f.type==='purchase_next'){
+    if(purchaseVignette(x))choices=`<button data-fu-expiry="1" class="recommended full">Zadat konec platnosti</button><button data-fu-mode="task" class="full">Další úkol</button>`;
+    else choices=`${purchaseDurable(x)?'<button data-fu-warranty="1" class="recommended full">Uložit konec záruky</button>':''}<button data-fu-mode="repeat">Připomenout další nákup</button><button data-fu-mode="task">Jiný další krok</button>`;
+  }else if(f.type==='payment_next'){
+    choices=`<button data-fu-months="1">Za měsíc</button><button data-fu-months="3">Za 3 měsíce</button><button data-fu-months="6">Za 6 měsíců</button><button data-fu-months="12">Za rok</button><button data-fu-custom="1" class="full">Vybrat datum</button>`;
+  }else if(f.type==='tires_next'){
+    choices=`<button data-fu-season="jaro">Příští jaro</button><button data-fu-season="podzim">Příští podzim</button><button data-fu-custom="1" class="full">Vybrat přesné datum</button>`;
+  }else if(f.type==='service_next'){
+    choices=`<button data-fu-service-log="1" class="recommended full">Doplnit zápis o servisu</button><button data-fu-mode="repeat" class="full">Připomenout další servis</button>`;
   }else if(f.type==='appointment_book'){
     choices=`<button data-fu-custom="1" class="recommended full">Zadat termín návštěvy</button><button data-fu-restore="1" class="full">Ještě nejsem objednaný</button>`;
   }else if(f.type==='appointment_next'){
@@ -1154,7 +1215,7 @@ function followupModal(){
   else if(f.type==='stk')choices=`<button data-fu-years="1">Za 1 rok</button><button data-fu-years="2">Za 2 roky</button><button data-fu-custom="1" class="recommended">Vybrat přesné datum</button>`;
   else if(f.type==='garden')choices=`<button data-fu-spring="1" class="recommended">Příští jaro</button><button data-fu-years="1">Za rok</button><button data-fu-custom="1">Vybrat datum</button>`;
   else if(f.type==='annual')choices=`<button data-fu-years="1" class="recommended">Za rok</button><button data-fu-custom="1">Vybrat datum</button>`;
-  else if(f.type==='service'||f.type==='contract')choices=`<button data-fu-custom="1" class="recommended">${f.type==='contract'?'Zadat nový konec':'Zadat termín'}</button>`;
+  else if(f.type==='service'||f.type==='contract')choices=`<button data-fu-custom="1" class="recommended">${f.type==='contract'?'Zadat nový konec':'Zadat termín'}</button>${f.type==='service'?'<button data-fu-mode="waiting">Ozvali se, ale zatím nemám termín</button>':''}`;
   if(!['appointment_book','appointment_next'].includes(f.type))choices+=`<button data-fu-none="1" class="full">Bez další návaznosti</button>`;
   return `<div class="modal" id="modal"><div class="sheet"><h2>${esc(f.title)}</h2><div class="logicBox"><strong>Návaznost</strong>${esc(f.text)}</div><div class="choiceGrid">${choices}</div></div></div>`;
 }
@@ -1261,9 +1322,12 @@ function historyModal(){
     const v=x.actualDate?dateInputValue(x.actualDate):'';
     return `<div class="modal" id="modal"><div class="sheet"><h2>Skutečný den události</h2><div class="meta">${esc(displayTitle(x))}</div><p class="historyPaneNote">Vyplň pouze tehdy, když víš, kdy se věc opravdu uskutečnila. Termín úkolu ani den odškrtnutí tím nezměníš.</p><div class="editForm"><label>Skutečné datum<input type="date" id="historyActualDate" value="${esc(v)}"></label></div><div class="sheetActions"><button id="cancelHistoryDate">Zpět</button><button id="saveHistoryDate" class="green">Uložit datum</button>${x.actualDate?'<button id="clearHistoryDate" class="secondary" style="grid-column:1/3">Odebrat skutečné datum</button>':''}</div></div></div>`;
   }
+  if(state.historyNotesEdit){
+    return `<div class="modal" id="modal"><div class="sheet"><h2>📝 Poznámky do historie</h2><div class="meta">${esc(displayTitle(x))}</div><div class="editForm"><label>Co si chceš uchovat?<textarea id="historyEditNotes" rows="5" placeholder="Co se stalo, co bylo provedeno…">${esc(x.notes||'')}</textarea></label>${taskIntent(x)==='service'?`<label>Stav km (volitelné)<input id="historyEditMileage" type="number" min="0" value="${esc(x.serviceMileage??'')}"></label><label>Cena (Kč, volitelné)<input id="historyEditCost" type="number" min="0" value="${esc(x.serviceCost??'')}"></label>`:''}</div><div class="sheetActions"><button id="cancelHistoryNotes">Zpět</button><button id="saveHistoryNotes" class="green">Uložit poznámky</button></div></div></div>`;
+  }
   const chain=historyDisplayChain(x);
   const actualControl=x.status==='done'&&historyActivityType(x)?`<div class="historyActualRow"><strong>${x.actualDate?'Skutečně proběhlo '+esc(fmt(x.actualDate)):'Skutečné datum zatím neznáme'}</strong><div class="historyHint">Datum dokončení v aplikaci nemusí být dnem události.</div><button type="button" id="historySetActualDate">${x.actualDate?'Změnit skutečné datum':'Doplnit skutečné datum'}</button></div>`:'';
-  return `<div class="modal" id="modal"><div class="sheet"><h2>Historie návazností</h2><div class="meta">${esc(displayTitle(x))} · ${chain.length} ${chain.length===1?'krok':chain.length>=2&&chain.length<=4?'kroky':'kroků'}</div><div class="historyTimeline">${chain.map(i=>{const e=historyEvent(i);return `<div class="historyEvent ${i.id===x.id?'current':''}"><div class="historyEventTitle">${esc(e.title)}</div>${e.meta?`<div class="historyEventMeta">${esc(e.meta)}${i.actualDate?' · skutečně '+esc(fmt(i.actualDate)):''}</div>`:''}</div>`}).join('')}</div>${actualControl}<div class="sheetActions" style="grid-template-columns:1fr"><button id="closeHistory">Zavřít</button></div></div></div>`;
+  return `<div class="modal" id="modal"><div class="sheet"><h2>Historie návazností</h2><div class="meta">${esc(displayTitle(x))} · ${chain.length} ${chain.length===1?'krok':chain.length>=2&&chain.length<=4?'kroky':'kroků'}</div><div class="historyTimeline">${chain.map(i=>{const e=historyEvent(i);return `<div class="historyEvent ${i.id===x.id?'current':''}"><div class="historyEventTitle">${esc(e.title)}</div>${e.meta?`<div class="historyEventMeta">${esc(e.meta)}${i.actualDate?' · skutečně '+esc(fmt(i.actualDate)):''}</div>`:''}${i.notes?`<div class="historyEventNotes">📝 ${esc(i.notes)}</div>`:''}</div>`}).join('')}</div>${actualControl}${x.status==='done'?`<div class="historyActualRow"><strong>📝 ${x.notes?'Poznámky jsou uložené':'Poznámky k tomuto záznamu'}</strong>${x.notes?`<p style="white-space:pre-wrap">${esc(x.notes)}</p>`:''}<button type="button" id="historyAddNotes">${x.notes?'Upravit poznámky':'Doplnit poznámky'}</button></div>`:''}<div class="sheetActions" style="grid-template-columns:1fr"><button id="closeHistory">Zavřít</button></div></div></div>`;
 }
 function categoryRecordCount(area){return state.items.filter(i=>i.area===area).length}
 function categoryMenuModal(){
@@ -1326,7 +1390,22 @@ function modal(){
   if(state.editing===x.id){
     const areas=allAreas();const currentHidden=x.area&&areaHidden(x.area);
     const dateValue=x.kind==='waiting'?dateInputValue(x.since):x.kind==='voucher'?dateInputValue(x.expires):dateInputValue(x.due);
-    return `<div class="modal" id="modal"><div class="sheet"><h2>Upravit</h2><div class="meta">Změň jen to, co potřebuješ.</div><div class="editForm"><label>Název<input id="editTitle" value="${esc(displayTitle(x))}"></label><label>Typ<select id="editKind"><option value="todo" ${x.kind==='todo'?'selected':''}>Úkol</option><option value="watch" ${x.kind==='watch'?'selected':''}>Hlídám</option><option value="waiting" ${x.kind==='waiting'?'selected':''}>Čekám</option><option value="shopping" ${x.kind==='shopping'?'selected':''}>Nákup</option><option value="voucher" ${x.kind==='voucher'?'selected':''}>Poukaz</option></select></label><label>Oblast<select id="editArea">${currentHidden?`<option value="${esc(x.area)}" selected disabled>${esc(areaLabel(x.area))} (skrytá – obnov v Moje věci)</option>`:''}${areas.map(a=>`<option value="${a}" ${x.area===a?'selected':''}>${esc(areaLabel(a))}</option>`).join('')}</select></label><label>Konkrétní osoba / věc (volitelné)<input id="editEntity" value="${esc(x.entity||'')}" placeholder="např. Táta, Audi Q8, Topení"></label><label>Co hlídám (volitelné)<input id="editTopic" value="${esc(x.topic||'')}" placeholder="např. STK, Servis, Pojištění"></label><label>Datum / termín<input id="editDate" type="date" value="${dateValue}"></label><label>Část dne<select id="editDaypart"><option value="" ${!itemDaypart(x)?'selected':''}>Bez určení</option>${['ráno','dopoledne','odpoledne','večer','v noci'].map(d=>`<option value="${d}" ${itemDaypart(x)===d?'selected':''}>${d}</option>`).join('')}</select></label><label>Hodnota poukazu (Kč)<input id="editValue" type="number" min="0" step="1" value="${x.value||''}" placeholder="např. 2000"></label></div><div class="sheetActions"><button id="cancelEdit">Zrušit</button><button id="saveEdit" class="green">Uložit změny</button></div></div></div>`;
+    const notes=x.notes||'',isVoucher=x.kind==='voucher',isWait=x.kind==='waiting';
+    const dateLabel=isVoucher?'Platnost do':isWait?'Kdy znovu zkontrolovat?':'Datum / termín';
+    const dateForForm=isVoucher?dateInputValue(x.expires):isWait?dateInputValue(x.due||x.attention):dateInputValue(x.due);
+    return `<div class="modal" id="modal"><div class="sheet"><h2>Upravit</h2><div class="meta">Změň jen to, co potřebuješ.</div><div class="editForm">
+      <label>Název<input id="editTitle" value="${esc(displayTitle(x))}"></label>
+      <label>Typ<select id="editKind"><option value="todo" ${x.kind==='todo'?'selected':''}>Úkol</option><option value="watch" ${x.kind==='watch'?'selected':''}>Hlídám</option><option value="waiting" ${x.kind==='waiting'?'selected':''}>Čekám</option><option value="shopping" ${x.kind==='shopping'?'selected':''}>Nákup</option><option value="voucher" ${x.kind==='voucher'?'selected':''}>Poukaz</option></select></label>
+      <label>Oblast<select id="editArea">${currentHidden?`<option value="${esc(x.area)}" selected disabled>${esc(areaLabel(x.area))} (skrytá – obnov v Moje věci)</option>`:''}${areas.map(a=>`<option value="${a}" ${x.area===a?'selected':''}>${esc(areaLabel(a))}</option>`).join('')}</select></label>
+      <label>Konkrétní osoba / věc (volitelné)<input id="editEntity" value="${esc(x.entity||'')}" placeholder="např. Táta, Audi Q8, Topení"></label>
+      <label>Co hlídám (volitelné)<input id="editTopic" value="${esc(x.topic||'')}" placeholder="např. STK, Servis, Pojištění"></label>
+      <label id="editDateLabel">${dateLabel}<input id="editDate" type="date" value="${dateForForm}"></label>
+      <label id="editSinceRow" ${isWait?'':'class="hidden"'}>Čekám od<input id="editSince" type="date" value="${dateInputValue(x.since)}"></label>
+      <label>Část dne<select id="editDaypart"><option value="" ${!itemDaypart(x)?'selected':''}>Bez určení</option>${['ráno','dopoledne','odpoledne','večer','v noci'].map(d=>`<option value="${d}" ${itemDaypart(x)===d?'selected':''}>${d}</option>`).join('')}</select></label>
+      <label id="editVoucherRow" ${isVoucher?'':'class="hidden"'}>Hodnota poukazu (Kč)<input id="editValue" type="number" min="0" step="1" value="${x.value??''}" placeholder="např. 2000"></label>
+      <label>📝 Poznámky (volitelné)<textarea id="editNotes" rows="4" placeholder="Co si chceš pamatovat?">${esc(notes)}</textarea></label>
+      <div id="editServiceFields" ${taskIntent(x)==='service'?'':'class="hidden"'}><label>Stav kilometrů (volitelné)<input id="editMileage" type="number" min="0" value="${esc(x.serviceMileage??'')}" placeholder="např. 82450"></label><label>Cena opravy / servisu (Kč, volitelné)<input id="editServiceCost" type="number" min="0" value="${esc(x.serviceCost??'')}" placeholder="např. 4200"></label></div>
+      </div><div class="sheetActions"><button id="cancelEdit">Zrušit</button><button id="saveEdit" class="green">Uložit změny</button></div></div></div>`;
   }
   const ap=actionProfile(x);let actions='';
   if(x.kind!=='shopping'){
@@ -1334,7 +1413,7 @@ function modal(){
   }
   const source=x.origin==='followup'?'':(x.raw&&x.raw!==displayTitle(x)?`<div class="row"><span>Původní zadání</span><b style="text-align:right;max-width:65%">${esc(x.raw)}</b></div>`:'');
   const history=historyHtml(x);
-  return `<div class="modal" id="modal"><div class="sheet">${state.voucherListReturn&&x.kind==='voucher'?`<button type="button" class="secondary" id="backToVouchers" style="margin-bottom:14px">← Zpět na poukazy</button>`:''}<h2>${x.icon||''} ${esc(displayTitle(x))}</h2><div class="meta">${esc(itemMeta(x))}</div>${x.due?`<div class="row"><span>Termín</span><b>${fmt(x.due)}</b></div>`:''}${itemDaypart(x)?`<div class="row"><span>Část dne</span><b>${esc(itemDaypart(x))}</b></div>`:''}${x.periodLabel?`<div class="row"><span>Období</span><b>${esc(x.periodLabel)}</b></div>`:''}${x.expires?`<div class="row"><span>Platnost</span><b>${fmt(x.expires)}</b></div>`:''}${x.value?`<div class="row"><span>Hodnota</span><b>${x.value.toLocaleString('cs-CZ')} Kč</b></div>`:''}${x.since?`<div class="row"><span>Čekám od</span><b>${fmt(x.since)}</b></div>`:''}${x.snoozedUntil?`<div class="row"><span>Připomenu</span><b>${fmt(x.snoozedUntil)}</b></div>`:''}${history}${source}<div class="sheetActions">${actions}<button id="editItem" class="secondary" style="grid-column:1/3">Upravit</button><button id="delete" class="danger" style="grid-column:1/3">Smazat</button></div></div></div>`}
+  return `<div class="modal" id="modal"><div class="sheet">${state.voucherListReturn&&x.kind==='voucher'?`<button type="button" class="secondary" id="backToVouchers" style="margin-bottom:14px">← Zpět na poukazy</button>`:''}<h2>${x.icon||''} ${esc(displayTitle(x))}</h2><div class="meta">${esc(itemMeta(x))}</div>${x.due?`<div class="row"><span>Termín</span><b>${fmt(x.due)}</b></div>`:''}${itemDaypart(x)?`<div class="row"><span>Část dne</span><b>${esc(itemDaypart(x))}</b></div>`:''}${x.periodLabel?`<div class="row"><span>Období</span><b>${esc(x.periodLabel)}</b></div>`:''}${x.expires?`<div class="row"><span>Platnost</span><b>${fmt(x.expires)}</b></div>`:''}${x.validFrom?`<div class="row"><span>Platí od</span><b>${fmt(x.validFrom)}</b></div>`:''}${x.value?`<div class="row"><span>Hodnota</span><b>${x.value.toLocaleString('cs-CZ')} Kč</b></div>`:''}${x.since?`<div class="row"><span>Čekám od</span><b>${fmt(x.since)}</b></div>`:''}${x.snoozedUntil?`<div class="row"><span>Připomenu</span><b>${fmt(x.snoozedUntil)}</b></div>`:''}${x.notes?`<div class="noteDetail"><strong>📝 Poznámky</strong><p>${esc(x.notes)}</p></div>`:''}${x.serviceMileage!=null?`<div class="row"><span>Stav km</span><b>${Number(x.serviceMileage).toLocaleString('cs-CZ')} km</b></div>`:''}${x.serviceCost!=null?`<div class="row"><span>Cena servisu</span><b>${Number(x.serviceCost).toLocaleString('cs-CZ')} Kč</b></div>`:''}${history}${source}<div class="sheetActions">${actions}<button id="editItem" class="secondary" style="grid-column:1/3">Upravit</button><button id="delete" class="danger" style="grid-column:1/3">Smazat</button></div></div></div>`}
 
 // Kategorie: 450 ms podrzeni => presun v mrizce. Kratke klepnuti zustava otevreni.
 let categoryDrag=null;
@@ -1466,7 +1545,9 @@ function openCategoryEditor(area){
     render();
   }
 }
-function bind(){$$('[data-tab]').forEach(b=>b.onclick=()=>{if(b.dataset.tab!=='add')haltVoiceOnNavigation();state.tab=b.dataset.tab;state.detail=null;state.voucherListReturn=false;state.historyFor=null;state.openArea=null;state.categoryHistoryOpen=false;state.categoryHistoryQuery='';state.categoryHistoryLimit=25;state.categoryHistoryShowOld=false;state.categoryHistoryMonths=6;state.historyMonthLimits={};state.historyDateEdit=false;state.deleteOneFor=null;state.editing=null;state.manageMode=false;state.selectedIds=[];state.manageOpenAreas=[];state.manageHiddenOpen=false;state.manageAdvancedOpen=false;state.confirmDelete=null;state.deferFor=null;state.deferCustom=false;state.rescheduleFor=null;state.followup=null;state.followupCustom=false;state.followupMode=null;state.hiddenCategoriesOpen=false;state.categoryMenuFor=null;state.categorySelectMode=false;state.selectedCategories=[];state.categoryDeleteConfirm=null;render()});$$('[data-id]').forEach(e=>e.onclick=()=>{state.detail=e.dataset.id;state.voucherListReturn=false;render()});
+function bind(){
+  $$('input:not([type="date"]):not([type="number"]):not([type="checkbox"]),textarea').forEach(el=>{if(el.id==='newText')return;el.addEventListener('focus',()=>{if(el.value&&typeof el.select==='function')requestAnimationFrame(()=>{if(document.activeElement===el)el.select()})},{once:true})});
+  $$('[data-tab]').forEach(b=>b.onclick=()=>{if(b.dataset.tab!=='add')haltVoiceOnNavigation();state.tab=b.dataset.tab;state.detail=null;state.voucherListReturn=false;state.historyFor=null;state.openArea=null;state.categoryHistoryOpen=false;state.categoryHistoryQuery='';state.categoryHistoryLimit=25;state.categoryHistoryShowOld=false;state.categoryHistoryMonths=6;state.historyMonthLimits={};state.historyDateEdit=false;state.deleteOneFor=null;state.editing=null;state.manageMode=false;state.selectedIds=[];state.manageOpenAreas=[];state.manageHiddenOpen=false;state.manageAdvancedOpen=false;state.confirmDelete=null;state.deferFor=null;state.deferCustom=false;state.rescheduleFor=null;state.followup=null;state.followupCustom=false;state.followupMode=null;state.hiddenCategoriesOpen=false;state.categoryMenuFor=null;state.categorySelectMode=false;state.selectedCategories=[];state.categoryDeleteConfirm=null;render()});$$('[data-id]').forEach(e=>e.onclick=()=>{state.detail=e.dataset.id;state.voucherListReturn=false;render()});
 $$('[data-area]').forEach(el=>el.onclick=e=>{
   if(e.target.closest('[data-category-menu]')||Date.now()<categoryDragIgnoreClicksUntil)return;
   const a=el.dataset.area;state.openArea=a;state.categoryHistoryOpen=false;state.categoryHistoryQuery='';state.categoryHistoryLimit=25;state.categoryHistoryShowOld=false;state.categoryHistoryMonths=6;state.historyMonthLimits={};render();
@@ -1478,11 +1559,12 @@ const backThings=$('#backThings');if(backThings)backThings.onclick=()=>{state.op
 const categoryArchiveToggle=$('#categoryArchiveToggle');if(categoryArchiveToggle)categoryArchiveToggle.onclick=()=>{state.categoryHistoryOpen=!state.categoryHistoryOpen;render()};
 const historyPane=$('#categoryHistoryPane');if(historyPane){
  const input=$('#categoryHistorySearch');
- if(input)input.oninput=()=>{state.categoryHistoryQuery=input.value;state.categoryHistoryLimit=25;const target=$('#categoryHistoryDynamic');if(target)target.innerHTML=historyBodyHtml(categoryArchivedItems(state.openArea));};
+ if(input)input.oninput=()=>{state.categoryHistoryQuery=input.value;state.categoryHistoryLimit=25;const target=$('#categoryHistoryDynamic');if(target)target.innerHTML=historyBodyHtml(categoryArchivedItems(state.openArea));const c=$('#clearHistorySearch');if(c)c.hidden=!input.value;};
+ const clearHistory=$('#clearHistorySearch');if(clearHistory)clearHistory.onclick=()=>{state.categoryHistoryQuery='';input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus()};
  historyPane.onclick=e=>{
    const target=e.target.closest('[data-archived-id],[data-history-more],[data-history-old],[data-history-more-months],[data-history-month-more]');
    if(!target)return;
-   if(target.dataset.archivedId){state.historyFor=target.dataset.archivedId;state.historyDateEdit=false;render();return}
+   if(target.dataset.archivedId){state.historyFor=target.dataset.archivedId;state.historyDateEdit=false;state.historyNotesEdit=false;render();return}
    if(target.dataset.historyMore){state.categoryHistoryLimit+=25;render();return}
    if(target.dataset.historyOld){state.categoryHistoryShowOld=!state.categoryHistoryShowOld;render();return}
    if(target.dataset.historyMoreMonths){state.categoryHistoryMonths+=6;render();return}
@@ -1499,11 +1581,21 @@ const categoryMenuDelete=$('#categoryMenuDelete');if(categoryMenuDelete)category
 const categoryMenuCancel=$('#categoryMenuCancel');if(categoryMenuCancel)categoryMenuCancel.onclick=()=>{state.categoryMenuFor=null;render()};
 const cancelCategoryDelete=$('#cancelCategoryDelete');if(cancelCategoryDelete)cancelCategoryDelete.onclick=()=>{state.categoryDeleteConfirm=null;render()};
 const confirmCategoryDelete=$('#confirmCategoryDelete');if(confirmCategoryDelete)confirmCategoryDelete.onclick=()=>{const areas=state.categoryDeleteConfirm?.areas||[];areas.forEach(removeCategoryDefinition);savePersonalization();state.categoryDeleteConfirm=null;state.categoryMenuFor=null;state.categorySelectMode=false;state.selectedCategories=[];render();toast(areas.length===1?'Kategorie je smazaná.':'Kategorie jsou smazané.');};
-$$('[data-history]').forEach(b=>b.onclick=e=>{e.stopPropagation();state.historyFor=b.dataset.history;render()});
-const closeHistory=$('#closeHistory');if(closeHistory)closeHistory.onclick=()=>{state.historyFor=null;state.historyDateEdit=false;render()};
+$$('[data-history]').forEach(b=>b.onclick=e=>{e.stopPropagation();state.historyFor=b.dataset.history;state.historyNotesEdit=false;render()});
+const closeHistory=$('#closeHistory');if(closeHistory)closeHistory.onclick=()=>{state.historyFor=null;state.historyDateEdit=false;state.historyNotesEdit=false;render()};
 const historySetActualDate=$('#historySetActualDate');if(historySetActualDate)historySetActualDate.onclick=()=>{state.historyDateEdit=true;render()};
 const cancelHistoryDate=$('#cancelHistoryDate');if(cancelHistoryDate)cancelHistoryDate.onclick=()=>{state.historyDateEdit=false;render()};
 const saveHistoryDate=$('#saveHistoryDate');if(saveHistoryDate)saveHistoryDate.onclick=()=>{const x=state.items.find(i=>i.id===state.historyFor);const v=$('#historyActualDate')?.value;if(!x||!v)return toast('Vyber skutečné datum.');x.actualDate=dateFromInput(v);save();state.historyDateEdit=false;render();toast('Skutečné datum je uložené.');};
+const historyAddNotes=$('#historyAddNotes');if(historyAddNotes)historyAddNotes.onclick=()=>{state.historyNotesEdit=true;render()};
+const cancelHistoryNotes=$('#cancelHistoryNotes');if(cancelHistoryNotes)cancelHistoryNotes.onclick=()=>{state.historyNotesEdit=false;render()};
+const saveHistoryNotes=$('#saveHistoryNotes');if(saveHistoryNotes)saveHistoryNotes.onclick=()=>{
+ const x=state.items.find(i=>i.id===state.historyFor);if(!x)return;
+ x.notes=$('#historyEditNotes').value.trim()||null;
+ const m=$('#historyEditMileage')?.value,c=$('#historyEditCost')?.value;
+ if(m!==undefined)x.serviceMileage=m?Number(m):null;
+ if(c!==undefined)x.serviceCost=c?Number(c):null;
+ save();state.historyNotesEdit=false;render();toast('Poznámky jsou uložené v historii.');
+};
 const clearHistoryDate=$('#clearHistoryDate');if(clearHistoryDate)clearHistoryDate.onclick=()=>{const x=state.items.find(i=>i.id===state.historyFor);if(x){delete x.actualDate;save()}state.historyDateEdit=false;render();toast('Datum odebrané.');};
 const newCategory=$('#newCategory');if(newCategory)newCategory.onclick=()=>{state.categoryEditor={mode:'custom',name:'',emoji:'',keywords:[],color:CATEGORY_COLORS[0],originalName:null,assignToDraftIndex:null};state.categoryColor=CATEGORY_COLORS[0];render()};
 const hiddenCategories=$('#hiddenCategories');if(hiddenCategories)hiddenCategories.onclick=()=>{state.hiddenCategoriesOpen=!state.hiddenCategoriesOpen;render()};
@@ -1545,7 +1637,40 @@ const search=$('#search');if(search)search.oninput=()=>{const q=search.value.toL
 const modalEl=$('#modal');if(modalEl)modalEl.onclick=e=>{if(e.target!==modalEl)return;if(state.categoryDeleteConfirm){state.categoryDeleteConfirm=null;render();return}if(state.categoryMenuFor){state.categoryMenuFor=null;render();return}if(state.categoryEditor){state.categoryEditor=null;render();return}if(state.historyFor){if(state.historyDateEdit)state.historyDateEdit=false;else state.historyFor=null;render();return}if(!state.followup&&!state.deferFor&&!state.rescheduleFor){state.detail=null;state.voucherListReturn=false;state.editing=null;state.confirmDelete=null;render()}};
 const closeShopping=$('#closeShopping');if(closeShopping)closeShopping.onclick=()=>{state.detail=null;state.editing=null;render()};
 const cancelEdit=$('#cancelEdit');if(cancelEdit)cancelEdit.onclick=()=>{state.editing=null;render()};
-const saveEdit=$('#saveEdit');if(saveEdit)saveEdit.onclick=()=>{const x=state.items.find(i=>i.id===state.detail);if(!x)return;const previousArea=x.area;const title=$('#editTitle').value.trim();if(!title)return toast('Název nemůže být prázdný.');const kind=$('#editKind').value,area=$('#editArea').value,entity=$('#editEntity').value.trim()||null,topic=$('#editTopic').value.trim()||null,date=dateFromInput($('#editDate').value),val=parseInt($('#editValue').value||'0',10)||null;x.manualTitle=title;x.title=title;x.kind=kind;x.daypart=$('#editDaypart').value||null;x.area=area;x.entity=entity;x.topic=topic;x.icon=iconFor(kind,area);x.due=null;x.since=null;x.expires=null;x.periodLabel=null;x.snoozedUntil=null;x.value=kind==='voucher'?val:null;if(kind==='shopping'){x.attention=null}else if(kind==='waiting'){x.since=date||new Date().toISOString();x.attention=new Date(new Date(x.since).getTime()+5*dayMs).toISOString()}else if(kind==='voucher'){x.expires=date;x.attention=date?new Date(new Date(date).getTime()-30*dayMs).toISOString():null}else{x.due=date;x.attention=date||(kind==='todo'?new Date().toISOString():null)}if(area!==previousArea)learnAreaChoice(x.raw||title,area,previousArea);rememberPeople(x.raw||title,area,area!==previousArea);save();state.editing=null;toast('Uloženo.');};
+const editKind=$('#editKind');if(editKind)editKind.onchange=()=>{
+  const k=editKind.value;
+  const v=$('#editVoucherRow'),w=$('#editSinceRow'),d=$('#editDateLabel');
+  if(v)v.classList.toggle('hidden',k!=='voucher');
+  if(w)w.classList.toggle('hidden',k!=='waiting');
+  if(d)d.childNodes[0].textContent=k==='voucher'?'Platnost do':k==='waiting'?'Kdy znovu zkontrolovat?':'Datum / termín';
+};
+const saveEdit=$('#saveEdit');if(saveEdit)saveEdit.onclick=()=>{
+  const x=state.items.find(i=>i.id===state.detail);if(!x)return;
+  const previousArea=x.area,previousKind=x.kind;
+  const title=$('#editTitle').value.trim();if(!title)return toast('Název nemůže být prázdný.');
+  const kind=$('#editKind').value,area=$('#editArea').value,entity=$('#editEntity').value.trim()||null,topic=$('#editTopic').value.trim()||null;
+  const date=dateFromInput($('#editDate').value);
+  x.manualTitle=title;x.title=title;x.kind=kind;x.daypart=$('#editDaypart').value||null;x.area=area;x.entity=entity;x.topic=topic;x.icon=iconFor(kind,area);
+  x.notes=$('#editNotes')?.value.trim()||null;
+  const mileage=$('#editMileage')?.value,cost=$('#editServiceCost')?.value;
+  if(mileage!==undefined)x.serviceMileage=mileage?Number(mileage):null;
+  if(cost!==undefined)x.serviceCost=cost?Number(cost):null;
+  x.periodLabel=null;x.snoozedUntil=null;
+  if(kind==='shopping'){x.due=null;x.attention=null}
+  else if(kind==='waiting'){
+    if(previousKind!=='waiting')x.since=dateFromInput($('#editSince')?.value)||new Date().toISOString();
+    else x.since=dateFromInput($('#editSince')?.value)||x.since||new Date().toISOString();
+    x.due=date;x.attention=date||addDaysFrom(new Date(x.since),5).toISOString();
+  }else if(kind==='voucher'){
+    x.expires=date;x.due=null;x.attention=date?addDaysFrom(new Date(date),-30).toISOString():null;
+    const val=$('#editValue')?.value;x.value=val?Number(val):null;
+  }else{
+    x.due=date;x.attention=date||(kind==='todo'?new Date().toISOString():null);
+  }
+  if(area!==previousArea)learnAreaChoice(x.raw||title,area,previousArea);
+  rememberPeople(x.raw||title,area,area!==previousArea);
+  save();state.editing=null;toast('Uloženo.');
+};
 const editItem=$('#editItem');if(editItem)editItem.onclick=()=>{state.editing=state.detail;render()};
 const finishShopping=id=>{const item=state.items.find(i=>i.id===id);if(!item)return;item.status='done';save();state.undo={type:'shopping',id:item.id,title:displayTitle(item),label:'Koupeno'};if(undoTimer)clearTimeout(undoTimer);const remaining=state.items.some(i=>i.status==='active'&&i.kind==='shopping');if(state.detail==='__shopping__'&&!remaining)state.detail=null;render();undoTimer=setTimeout(()=>{if(state.undo&&state.undo.id===id){state.undo=null;render()}},5000)};
 $$('[data-shop-done]').forEach(b=>b.onclick=e=>{e.stopPropagation();finishShopping(b.dataset.shopDone)});
@@ -1576,6 +1701,23 @@ const bookReminder=$('[data-fu-booking-reminder]');if(bookReminder)bookReminder.
 $$('[data-book-months]').forEach(b=>b.onclick=()=>{if(!followSource)return;const date=addMonthsFrom(followSource.completedAt||new Date(),+b.dataset.bookMonths);createBookingReminder(followSource,date);state.followup=null;state.followupCustom=false;state.followupMode=null;toast('Připomenutí objednání je uložené.')});
 const bookCustom=$('[data-book-custom]');if(bookCustom)bookCustom.onclick=()=>{state.followupMode='booking_reminder_custom';state.followupCustom=true;render()};
 const bookBack=$('[data-book-back]');if(bookBack)bookBack.onclick=()=>{state.followupMode=null;render()};
+$$('[data-fu-season]').forEach(b=>b.onclick=()=>{
+  if(!followSource)return;
+  const season=nextSeason(b.dataset.fuSeason);
+  createFollowup(followSource,season.date,{kind:'todo',title:displayTitle(followSource),noDue:true,periodLabel:season.label,attention:season.date.toISOString(),workflow:null});
+  state.followup=null;state.followupCustom=false;state.followupMode=null;toast(`Připomenu v období ${season.label}.`);
+});
+const fuExpiry=$('[data-fu-expiry]');if(fuExpiry)fuExpiry.onclick=()=>{state.followupMode='expiry';state.followupCustom=true;render()};
+const fuWarranty=$('[data-fu-warranty]');if(fuWarranty)fuWarranty.onclick=()=>{state.followupMode='warranty';state.followupCustom=true;render()};
+const fuServiceLog=$('[data-fu-service-log]');if(fuServiceLog)fuServiceLog.onclick=()=>{state.followupMode='service_log';render()};
+const cancelServiceLog=$('#cancelServiceLog');if(cancelServiceLog)cancelServiceLog.onclick=()=>{state.followupMode=null;render()};
+const saveServiceLog=$('#saveServiceLog');if(saveServiceLog)saveServiceLog.onclick=()=>{
+  if(!followSource)return;
+  followSource.notes=$('#serviceLogNotes').value.trim()||null;
+  const m=$('#serviceLogMileage').value,c=$('#serviceLogCost').value;
+  followSource.serviceMileage=m?Number(m):null;followSource.serviceCost=c?Number(c):null;
+  save();state.followupMode=null;render();toast('Servisní zápis je uložený v historii.');
+};
 const fuCustom=$('[data-fu-custom]');if(fuCustom)fuCustom.onclick=()=>{state.followupCustom=true;state.followupMode=null;render()};
 const fuRestore=$('[data-fu-restore]');if(fuRestore)fuRestore.onclick=()=>{if(!followSource)return;followSource.status='active';followSource.completedAt=null;followSource.followupId=null;save();state.followup=null;state.followupCustom=false;state.followupMode=null;toast('Vráceno k objednání.');};
 const fuNone=$('[data-fu-none]');if(fuNone)fuNone.onclick=()=>{state.followup=null;state.followupCustom=false;state.followupMode=null;toast('Hotovo bez další návaznosti.');};
@@ -1606,8 +1748,12 @@ const saveFollowupDate=$('#saveFollowupDate');if(saveFollowupDate)saveFollowupDa
       entity:followSource.entity||null,topic:followSource.topic||appointmentTopicFromItem(followSource),
       workflow:'appointment',appointmentStage:'scheduled',attention:new Date(date).toISOString()
     };
-  }else if(state.followup.type==='service'){
-    opts={title:displayTitle(followSource),kind:'watch',area:'Vozidla',entity:followSource.entity||'Vozidlo',topic:'Servis',mode:'service'};
+  }else if(state.followup.type==='purchase_next'&&state.followupMode==='expiry'){
+    opts={title:purchaseVignette(followSource)?'Platnost dálniční známky auta':renewalTitle(followSource,'Konec platnosti'),kind:'watch',area:followSource.area,entity:followSource.entity||null,topic:followSource.topic||'Platnost',validFrom:$('#validityStart')?.value?dateFromInput($('#validityStart').value):null,attention:addDaysFrom(new Date(date),-30).toISOString()};
+  }else if(state.followup.type==='purchase_next'&&state.followupMode==='warranty'){
+    opts={title:renewalTitle(followSource,'Konec záruky'),kind:'watch',area:followSource.area,entity:followSource.entity||null,topic:'Záruka',attention:addDaysFrom(new Date(date),-30).toISOString()};
+  }else if(state.followup.type==='service') {
+    opts={title:followSource.area==='Vozidla'?'Návštěva autoservisu':'Domluvený termín',kind:'watch',area:followSource.area,entity:followSource.entity||null,topic:'Servis',mode:'service',workflow:'appointment',appointmentStage:'scheduled',attention:new Date(date).toISOString()};
   }else if(state.followup.type==='contract'){
     opts={title:displayTitle(followSource),kind:'watch',area:'Smlouvy'};
   }
@@ -1643,6 +1789,7 @@ function previewItemEditor(x,i){
       <label>Název<input data-preview-title="${i}" value="${esc(x.title)}"></label>
       <label>Konkrétně / osoba / objekt<input data-preview-entity="${i}" value="${esc(x.entity||'')}" placeholder="např. Audi Q8, Táta, Novák"></label>
       <label>Co hlídám / typ věci<input data-preview-topic="${i}" value="${esc(x.topic||'')}" placeholder="např. STK, Servis, Schůzka"></label>
+      <label>Poznámky (volitelné)<textarea data-preview-notes="${i}" rows="2" placeholder="Co si chceš pamatovat?">${esc(x.notes||'')}</textarea></label>
       <label>${dateLabel}<input data-preview-date="${i}" type="date" value="${previewDateValue(x)}"></label><label>Část dne<select data-preview-daypart="${i}"><option value="" ${!x.daypart?'selected':''}>Bez určení</option>${['ráno','dopoledne','odpoledne','večer','v noci'].map(d=>`<option value="${d}" ${x.daypart===d?'selected':''}>${d}</option>`).join('')}</select></label>
     </div></details>
   </div>`
@@ -1678,11 +1825,12 @@ function bindPreviewDraft(){
   $$('[data-preview-title]').forEach(el=>el.oninput=()=>{const x=state.addDraft[+el.dataset.previewTitle];if(x){x.title=el.value;x.manualTitle=el.value}});
   $$('[data-preview-entity]').forEach(el=>el.oninput=()=>{const x=state.addDraft[+el.dataset.previewEntity];if(x)x.entity=el.value.trim()||null});
   $$('[data-preview-topic]').forEach(el=>el.oninput=()=>{const x=state.addDraft[+el.dataset.previewTopic];if(x)x.topic=el.value.trim()||null});
+  $$('[data-preview-notes]').forEach(el=>el.oninput=()=>{const x=state.addDraft[+el.dataset.previewNotes];if(x)x.notes=el.value});
   $$('[data-preview-date]').forEach(el=>el.onchange=()=>{const x=state.addDraft[+el.dataset.previewDate];if(!x)return;applyPreviewDate(x,el.value)});
   $$('[data-preview-daypart]').forEach(el=>el.onchange=()=>{const x=state.addDraft[+el.dataset.previewDaypart];if(x)x.daypart=el.value||null});
 }
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.4.18';
+const APP_VERSION='0.4.19';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
