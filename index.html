@@ -289,7 +289,7 @@ const BUILTIN_DEFAULTS={
   'Smlouvy':{label:'Smlouvy',emoji:'📄',color:'#8b5cf6',keywords:[]},
   'Práce':{label:'Práce',emoji:'💼',color:'#3b82f6',keywords:[]},
   'Finance':{label:'Finance',emoji:'📈',color:'#2fa37c',keywords:[]},
-  'Domácnost':{label:'Domácnost',emoji:'🛒',color:'#14b8a6',keywords:[]},
+  'Domácnost':{label:'Nákupní seznam',emoji:'🛒',color:'#14b8a6',keywords:[]},
   'Zahrada':{label:'Zahrada',emoji:'🌿',color:'#2fa37c',keywords:[]},
   'Poukazy':{label:'Poukazy',emoji:'🎁',color:'#f59e0b',keywords:[]}
 };
@@ -299,6 +299,12 @@ function loadBuiltinSettings(){try{const x=JSON.parse(localStorage.getItem('proj
 function loadLearning(){try{const x=JSON.parse(localStorage.getItem('projectD-learning')||'{}');return x&&typeof x==='object'?x:{}}catch{return{}}}
 let customAreas=loadCustomAreas();
 let builtinSettings=loadBuiltinSettings();
+// V0.4.25: zachovej interni identifikator a vsechna data i osobni nastaveni.
+// Pouze puvodni vychozi popisek se jednorazove prejmenuje. Vlastni nazvy uzivatelu nemenime.
+if(builtinSettings['Domácnost']?.label==='Domácnost'){
+  builtinSettings['Domácnost']={...builtinSettings['Domácnost'],label:'Nákupní seznam'};
+  try{localStorage.setItem('projectD-builtin-area-settings',JSON.stringify(builtinSettings))}catch{}
+}
 let learning=loadLearning();
 // Samostatna preference - meni jen poradi karet, nikdy data v kategoriich.
 function loadCategoryOrder(){try{const v=JSON.parse(localStorage.getItem('projectD-category-order-v1')||'[]');return Array.isArray(v)?[...new Set(v.filter(x=>typeof x==='string'))]:[]}catch{return[]}}
@@ -684,7 +690,7 @@ function entityInputHint(x){
     case 'Smlouvy':return 'např. Elektřina, internet, nájem';
     case 'Finance':return 'např. Spořicí účet, hypotéka';
     case 'Já':return 'např. Kadeřník, trenér';
-    case 'Domácnost':return 'např. Pračka, lednice, nábytek';
+    case 'Domácnost':return 'např. Nákupní položka, obchod';
     case 'Nákupy':return 'např. Obchod, konkrétní výrobek';
     default:return 'např. osoba, věc, název projektu';
   }
@@ -698,7 +704,8 @@ function topicInputHint(x){
   switch(x?.area){
     case 'Vozidla':return 'např. STK, servis, pojištění';
     case 'Ben':case 'Mazlíčci':return 'např. Veterina, očkování, stříhání';
-    case 'Dům':case 'Domácnost':return 'např. Revize, oprava, záruka';
+    case 'Dům':return 'např. Revize, oprava, záruka';
+    case 'Domácnost':return 'např. Potraviny, drogerie, potřeby';
     case 'Zahrada':return 'např. Zalévání, hnojení, údržba';
     case 'Rodina':return 'např. Narozeniny, návštěva, oslava';
     case 'Práce':return 'např. Schůzka, faktura, termín';
@@ -712,7 +719,30 @@ function topicInputHint(x){
 function isMedicalItem(x){return x&&x.area==='Zdraví'}
 function isClinicalEvent(x){return isMedicalItem(x)&&x.kind==='watch'&&(!isAppointmentBooking(x)||x.appointmentStage==='scheduled')}
 
-function detectArea(text){const personal=customAreaFromKeywords(text);if(personal)return personal;const relation=explicitHumanRelation(text);if(relation)return areaHidden(relation)?fallbackArea():relation;const topicOverride=specificTopicOverride(text);if(topicOverride)return areaHidden(topicOverride)?fallbackArea():topicOverride;const remembered=rememberedPersonArea(text);if(remembered)return remembered;const learned=learnedAreaFromText(text);if(learned)return learned;const l=text.toLowerCase();let area='Já';
+// Nákupní seznam a péče o byt jsou dva různé záměry, i když se oba týkají domácnosti.
+// Interní klíče kategorií zůstávají stejné kvůli historii, nastavením a uživatelským přejmenováním.
+function householdObjectMention(text){
+  const n=normalizedText(text);
+  return /\b(?:byt|byte|bytu|dom|domu|doma|koupeln|kuchyn|pokoj|chodba|okn|dver|strech|okap|kohout|bateri[ei]|odpad|sifon|umyvad|zachod|wc|sprch|vana|topen|radiator|kotel|komin|zasuvk|vypinac|zarovk|elektroinstal|prack|myck|lednic|susick|troub|sporak|varn[aey]|vysavac|klimatizac|bojler|mrazak|nabytek|skrin|postel|pohovk|gauc|stul|zidle|matrac|zaluz|rolet)/.test(n);
+}
+function householdConsumable(text){
+  const n=normalizedText(text);
+  return /(?:tablety|prasek|gel|sul|lestidlo|cistic|napln|sacek|filtr)\s+(?:do|na|pro)\s+(?:myck|prack|vysavac)/.test(n);
+}
+function householdDurablePurchase(text){
+  const n=normalizedText(text);
+  if(householdConsumable(text))return false;
+  return /\b(?:koupit|poridit|zakoupit|objednat)\b/.test(n)&&
+    /\b(?:prack|myck|lednic|susick|troub|sporak|vysavac|bojler|mrazak|klimatizac|kotel|nabytek|skrin|postel|pohovk|gauc|matrac|stul|zidle|televiz)/.test(n);
+}
+function householdTaskIntent(text){
+  const n=normalizedText(text);
+  return householdObjectMention(text)&&(
+    /\b(?:oprav|vymen|vycist|zkontrol|udrzb|servis|reviz|rekonstruk|montaz|namont|utesn|vyresit|vymal|vyspravit|poruch|kapaj|prot[e]ka|zatek|zaruk|zaruka|reklamac)/.test(n)||
+    householdDurablePurchase(text)
+  );
+}
+function detectArea(text){const personal=customAreaFromKeywords(text);if(personal)return personal;const relation=explicitHumanRelation(text);if(relation)return areaHidden(relation)?fallbackArea():relation;const topicOverride=specificTopicOverride(text);if(topicOverride)return areaHidden(topicOverride)?fallbackArea():topicOverride;const household=householdTaskIntent(text);if(household)return areaHidden('Dům')?fallbackArea():'Dům';const remembered=rememberedPersonArea(text);if(remembered)return remembered;const learned=learnedAreaFromText(text);if(learned)return learned;const l=text.toLowerCase();let area='Já';
 if(/\baut(?:o|a)\b|automobil|vozidl|\bvůz\b|\bvuz\b|\bvozu\b|motork|motocykl|skútr|skutr|dodávk|dodavk|kamion|nákladn[ií]\s+(?:auto|auta|vůz|vuz|vozu|vozidlo)|přívěs|prives|návěs|naves|traktor|\bstk\b|technick|servis.*(?:auto|auta|vozu|vozidla|motork)|pojištěn[ií].*(?:auto|auta|vozidla|motork)|pneumatik|přez|prez|dálniční\s+známk|dalnicni\s+znamk|emise/.test(l))area='Vozidla';
 else if(/smlouv|výpověd|internet|tarif|energie|dodavatel|pojištěn[ií]/.test(l))area='Smlouvy';
 else if(/rozpočet|spořic|spořen|účet|finance|finanč|investic|hypoték|hypotéc|bank|úvěr|půjčk/.test(l))area='Finance';
@@ -829,8 +859,18 @@ function clockTimeFromText(text){const m=String(text||'').match(/(?:^|\s)(?:v|ve
 function parse(text){const instr=reminderInstruction(text),l=instr.toLowerCase();let kind='todo',area=detectArea(instr),icon='📝',attention=null,due=null,since=null,value=null,expires=null,periodLabel=null;let entity=detectEntity(instr,area),topic=detectTopic(instr,area);const ti=temporalInfo(text);
 if(/čekám|až mi|až se ozve|odpověď|ozvou\s+se/.test(l)){kind='waiting';since=new Date().toISOString();due=ti.exact&&ti.date?ti.date.toISOString():null;attention=ti.date?ti.date.toISOString():new Date(Date.now()+5*dayMs).toISOString()}
 else if(/poukaz|voucher|dárkov(á|y) karta|kredit/.test(l)){kind='voucher';area='Poukazy';value=money(text);expires=ti.date?ti.date.toISOString():null;periodLabel=ti.periodLabel;if(expires){attention=new Date(new Date(expires).getTime()-30*dayMs).toISOString()}}
-else if(/(?:koupit|pořídit|zakoupit)\b/.test(l)&&/(dálniční\s+známk|dalnicni\s+znamk|pračk|myčk|televiz|notebook|mobil|telefon|lednic|sušič|spotřebič|robot|nářad|\bkolo\b|vysavač|počítač)/i.test(l)){kind='todo';if(area==='Já'&&/(pračk|myčk|lednic|sušič|spotřebič|vysavač)/.test(l))area='Domácnost';if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString()}
-else if(/mouka|mléko|granul|tablety do myčky|toalet|\bkoupit\b|\bdokoupit\b|došla|dochází|poslední|\bjar\b|rohlík|banán/.test(l)){kind='shopping';if(area==='Já')area='Domácnost';attention=null;due=ti.exact&&ti.date?ti.date.toISOString():null;periodLabel=ti.periodLabel}
+else if(!householdConsumable(instr)&&(householdDurablePurchase(instr)||(/(?:koupit|pořídit|zakoupit)\b/.test(l)&&/(dálniční\s+známk|dalnicni\s+znamk|pračk|myčk|televiz|notebook|mobil|telefon|lednic|sušič|spotřebič|robot|nářad|\bkolo\b|vysavač|počítač)/i.test(l)))){
+  kind='todo';
+  if(householdDurablePurchase(instr)&&!areaHidden('Dům'))area='Dům';
+  if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString();
+}
+else if(/mouka|mléko|granul|tablety do myčky|toalet|\bkoupit\b|\bdokoupit\b|došla|dochází|poslední|\bjar\b|rohlík|banán/.test(l)){
+  kind='shopping';
+  // Základní spotřební nákupy patří na nákupní seznam i při zmínce o bydlení.
+  // Uživatel může kategorii kdykoli ručně změnit při zadávání.
+  if(!areaHidden('Domácnost'))area='Domácnost';
+  attention=null;due=ti.exact&&ti.date?ti.date.toISOString():null;periodLabel=ti.periodLabel;
+}
 else if(area==='Smlouvy'&&/^\s*(?:zaplatit|uhradit)/i.test(stripTiming(instr))){kind='todo';if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString()}
 else if(actionableInstruction(instr)){kind='todo';if(ti.exact&&ti.date)due=ti.date.toISOString();periodLabel=ti.periodLabel;attention=ti.date?ti.date.toISOString():new Date().toISOString()}
 else if(['Ben','Vozidla','Smlouvy','Zahrada','Zdraví','Dům'].includes(area)){kind='watch';periodLabel=ti.periodLabel;if(ti.exact&&ti.date)due=ti.date.toISOString();if(ti.date){if(area==='Ben')attention=ti.exact?new Date(ti.date.getTime()-14*dayMs).toISOString():ti.date.toISOString();else if(area==='Zahrada'||area==='Dům')attention=ti.date.toISOString();else if(area==='Smlouvy'&&/měsíc\s+předem/i.test(l))attention=minusMonth(ti.date).toISOString();else attention=new Date(ti.date.getTime()-30*dayMs).toISOString()}}
@@ -872,7 +912,7 @@ function parseMany(text){
 function greeting(){const h=new Date().getHours();return h<12?'Dobré ráno':h<18?'Dobré odpoledne':'Dobrý večer'}
 function toast(t){state.toast=t;render();setTimeout(()=>{state.toast=null;render()},1700)}
 function nav(){return `<nav class="nav">${[['today','⌂','Dnes'],['watch','☷','Hlídám']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}<button class="plus" data-tab="add">＋</button>${[['waiting','◷','Čekám'],['things','▣','Moje věci']].map(([id,i,l])=>`<button data-tab="${id}" class="${state.tab===id?'active':''}"><span class="navIcon">${i}</span>${l}</button>`).join('')}</nav>`}
-function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.24</span></div><div class="avatar">☺</div></div>`}
+function header(){return `<div class="top"><div style="display:flex;align-items:center;gap:8px"><div class="brand">D</div><span style="font-size:11px;color:#94a3b8;font-weight:700">v0.4.25</span></div><div class="avatar">☺</div></div>`}
 function displayTitle(x){
   if(x.manualTitle)return x.manualTitle;
   if(x.kind==='shopping')return cleanTitle(x.raw||x.title,'shopping');
@@ -1268,7 +1308,7 @@ function taskIntent(x){
   if(/\b(?:zkontrolovat|overit|proverit)\b/.test(t))return'check';
   return'general';
 }
-function purchaseDurable(x){return /pračk|myčk|televiz|notebook|mobil|telefon|lednic|sušič|pračk|spotřebič|robot|nářad|kolo|vysavač|počítač|počítač/i.test(textOf(x))}
+function purchaseDurable(x){return /pračk|myčk|televiz|notebook|mobil|telefon|lednic|sušič|pračk|spotřebič|robot|nářad|kolo|vysavač|počítač|skříň|postel|pohovk|gauč|nábytek|matrac/i.test(textOf(x))}
 function durablePurchaseEntity(x){const l=normalizedText(textOf(x));const defs=[['Pračka',/prack/],['Myčka',/myck/],['Televize',/televiz/],['Telefon',/mobil|telefon/],['Notebook',/notebook/],['Lednice',/lednic/],['Sušička',/susick/],['Vysavač',/vysavac/],['Počítač',/pocitac/],['Robot',/robot/],['Kolo',/\bkolo\b/]];return defs.find(row=>row[1].test(l))?.[0]||null;}
 function purchaseVignette(x){return /dálniční\s+známk|dalnicni\s+znamk/i.test(textOf(x))}
 function czechCountDays(n){return n===1?'1 den':`${n} ${n>=2&&n<=4?'dny':'dní'}`}
@@ -1280,6 +1320,7 @@ function nextSeason(name){
 }
 function renewalTitle(x,what){
   let base=displayTitle(x).replace(/^(?:Koupit|Zakoupit|Pořídit|Dokoupit)\s+/i,'').trim();
+  if(what==='Konec záruky')return `Konec záruky na ${base.charAt(0).toLowerCase()+base.slice(1)}`;
   base=base.replace(/^novou\s+(pračku|myčku|sušičku|televizi|lednici|mikrovlnku|sekačku)$/i,(_,v)=>{const m={'pračku':'pračka','myčku':'myčka','sušičku':'sušička','televizi':'televize','lednici':'lednice','mikrovlnku':'mikrovlnka','sekačku':'sekačka'};return 'nová '+(m[v.toLowerCase()]||v)});
   return `${what} – ${base||displayTitle(x)}`;
 }
@@ -2088,10 +2129,32 @@ const saveEdit=$('#saveEdit');if(saveEdit)saveEdit.onclick=()=>{
   save();state.editing=null;toast('Uloženo.');
 };
 const editItem=$('#editItem');if(editItem)editItem.onclick=()=>{state.editing=state.detail;render()};
-const finishShopping=id=>{const item=state.items.find(i=>i.id===id);if(!item)return;item.status='done';save();state.undo={type:'shopping',id:item.id,title:displayTitle(item),label:'Koupeno'};if(undoTimer)clearTimeout(undoTimer);const remaining=state.items.some(i=>i.status==='active'&&i.kind==='shopping');if(state.detail==='__shopping__'&&!remaining)state.detail=null;render();undoTimer=setTimeout(()=>{if(state.undo&&state.undo.id===id){state.undo=null;render()}},5000)};
+const finishShopping=id=>{
+  const index=state.items.findIndex(i=>i.id===id&&i.status==='active'&&i.kind==='shopping');if(index<0)return;
+  // Běžný nákup nemá historický záznam. Položku odstraníme; její kopie žije
+  // jen během krátkého Vrátit, ne jako dokončený úkol v trvalé historii.
+  const [item]=state.items.splice(index,1);
+  save();
+  state.undo={type:'shopping',id:item.id,title:displayTitle(item),label:'Koupeno',item,index};
+  if(undoTimer)clearTimeout(undoTimer);
+  const remaining=state.items.some(i=>i.status==='active'&&i.kind==='shopping');
+  if(state.detail==='__shopping__'&&!remaining)state.detail=null;
+  render();undoTimer=setTimeout(()=>{if(state.undo?.type==='shopping'&&state.undo.id===id){state.undo=null;render()}},5000);
+};
 $$('[data-shop-done]').forEach(b=>b.onclick=e=>{e.stopPropagation();finishShopping(b.dataset.shopDone)});
 // Nákupní položka nemá detail: jediná akce v seznamu je odškrtnutí s možností Vrátit.
-const undoAction=$('#undoAction');if(undoAction)undoAction.onclick=()=>{const u=state.undo;if(!u)return;const item=state.items.find(i=>i.id===u.id);if(item){item.status='active';if(u.type==='completion'){item.completedAt=u.previousCompletedAt||null;item.actualDate=u.previousActualDate||null;item.followupId=null}save()}state.undo=null;state.followup=null;state.followupCustom=false;state.followupMode=null;if(undoTimer)clearTimeout(undoTimer);render()};
+const undoAction=$('#undoAction');if(undoAction)undoAction.onclick=()=>{
+  const u=state.undo;if(!u)return;
+  if(u.type==='shopping'&&u.item){
+    if(!state.items.some(i=>i.id===u.id))state.items.splice(Math.min(u.index,state.items.length),0,u.item);
+    save();
+  }else{
+    const item=state.items.find(i=>i.id===u.id);
+    if(item){item.status='active';if(u.type==='completion'){item.completedAt=u.previousCompletedAt||null;item.actualDate=u.previousActualDate||null;item.followupId=null}save()}
+  }
+  state.undo=null;state.followup=null;state.followupCustom=false;state.followupMode=null;
+  if(undoTimer)clearTimeout(undoTimer);render();
+};
 if(state.detail==='__shopping__')return;
 const followSource=state.followup?state.items.find(i=>i.id===state.followup.sourceId):null;
 $$('[data-fu-months]').forEach(b=>b.onclick=()=>{if(!followSource)return;if(state.followup?.type==='dentist'&&!followSource.actualDate)return toast('Nejprve potvrď skutečné datum návštěvy.');const date=addMonthsFrom(followupDueBase(followSource),+b.dataset.fuMonths);createFollowup(followSource,date);state.followup=null;state.followupCustom=false;toast('Navazující připomenutí je nastavené.');});
@@ -2269,7 +2332,7 @@ function bindPreviewDraft(){
   bindTapToSelectText(document.querySelector('#preview')||document);
 }
 function labelKind(k){return({todo:'Udělám',watch:'Hlídám',waiting:'Čekám na',shopping:'Nákup',voucher:'Poukaz'})[k]||k}
-const APP_VERSION='0.4.24';
+const APP_VERSION='0.4.25';
 let updateChecking=false;
 async function checkForUpdate(){
   if(updateChecking)return;
